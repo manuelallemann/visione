@@ -1,0 +1,141 @@
+version: '3.8'
+
+# Common network for analysis services
+networks:
+  visione_analysis_net:
+    driver: bridge
+    name: visione_analysis_network # Explicitly naming the network
+
+# Named volumes for persisting model caches across container restarts/recreations
+volumes:
+  # For models downloaded by torch.hub.load (e.g., DINOv2)
+  # Maps to the directory specified by TORCH_HOME in the DINOv2 service Dockerfile
+  pytorch_hub_cache_dir: {}
+  # For models downloaded by openai-clip library (defaults to ~/.cache/clip)
+  openai_clip_cache_dir: {}
+
+services:
+  # Modernized CLIP Feature Extractor Service
+  features-clip-modernized:
+    image: visione/features-clip-modernized:${VISION_TAG:-latest}
+    build:
+      context: ./analysis/features-clip # Relative to this docker-compose file
+      dockerfile: Dockerfile
+    ports:
+      - "8082:8080" # Expose on host port 8082, container listens on 8080
+    networks:
+      - visione_analysis_net
+    volumes:
+      # Mount the named volume to where openai-clip stores its models
+      # Assumes container runs as root, so ~/.cache/clip becomes /root/.cache/clip
+      - openai_clip_cache_dir:/root/.cache/clip
+    environment:
+      - LOG_LEVEL=INFO
+      - DEVICE=cuda # Instruct service to use CUDA
+      - PYTHONUNBUFFERED=1 # For immediate log output
+      # Service specific ENV VARS can be added here if service.py reads them
+      # e.g., - DEFAULT_CLIP_MODEL_NAME=ViT-L/14
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0' # Max 2 CPU cores
+          memory: '8G'  # Max 8GB RAM
+        reservations:
+          cpus: '0.5' # Reserve 0.5 CPU
+          memory: '4G'  # Reserve 4GB RAM
+          devices:
+            - driver: nvidia
+              count: 1 # Request 1 GPU. Use 'all' for all available.
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sSfk http://localhost:8080/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s # Time for service to start and load models
+    restart: on-failure # Restart if fails
+    shm_size: '2gb' # Shared memory for PyTorch
+
+  # Modernized CLIP2Video Feature Extractor Service
+  features-clip2video-modernized:
+    image: visione/features-clip2video-modernized:${VISION_TAG:-latest}
+    build:
+      context: ./analysis/features-clip2video
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+    networks:
+      - visione_analysis_net
+    volumes:
+      # CLIP2Video Dockerfile bakes models in. If its internal CLIP part downloads
+      # separately (e.g. base ViT model), this ensures it's cached.
+      - openai_clip_cache_dir:/root/.cache/clip
+      # If the base CLIP model for CLIP2Video is from torch.hub, this might be needed
+      # and TORCH_HOME env var set accordingly in its service.py or Dockerfile.
+      # - pytorch_hub_cache_dir:/cache/torch
+    environment:
+      - LOG_LEVEL=INFO
+      - DEVICE=cuda
+      - PYTHONUNBUFFERED=1
+      # Model paths are typically handled within the Dockerfile/service code for CLIP2Video's main checkpoints
+    deploy:
+      resources:
+        limits:
+          cpus: '2.5' # Video processing can be CPU intensive
+          memory: '12G' # Larger memory for video models/data
+        reservations:
+          cpus: '1.0'
+          memory: '6G'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sSfk http://localhost:8080/ping || exit 1"]
+      interval: 30s
+      timeout: 15s # Slightly longer timeout for video service
+      retries: 5
+      start_period: 180s # Longer start for potentially larger video models
+    restart: on-failure
+    shm_size: '4gb' # More shared memory for video processing
+
+  # Modernized DINOv2 Feature Extractor Service
+  features-dinov2-modernized:
+    image: visione/features-dinov2-modernized:${VISION_TAG:-latest}
+    build:
+      context: ./analysis/features-dinov2
+      dockerfile: Dockerfile
+    ports:
+      - "8083:8080"
+    networks:
+      - visione_analysis_net
+    volumes:
+      # DINOv2 Dockerfile sets ENV TORCH_HOME /cache/torch
+      - pytorch_hub_cache_dir:/cache/torch
+    environment:
+      - LOG_LEVEL=INFO
+      - DEVICE=cuda
+      - PYTHONUNBUFFERED=1
+      - TORCH_HOME=/cache/torch # Ensure consistency with Dockerfile ENV and volume mount
+      # Service specific ENV VARS can be added here if service.py reads them
+      # e.g., - DEFAULT_DINOV2_MODEL_NAME=dinov2_vitl14
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: '10G' # DINOv2 models can be memory hungry
+        reservations:
+          cpus: '0.5'
+          memory: '5G'
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sSfk http://localhost:8080/ping || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 150s # DINOv2 models also take time to load
+    restart: on-failure
+    shm_size: '2gb'
