@@ -1,142 +1,392 @@
-import abc
+"""
+Savers module for persisting extracted data in various formats.
+Provides abstract base class and concrete implementations for different storage formats.
+"""
+import asyncio
+import functools
 import gzip
 import json
-import logging
+import os
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
-import sys
-import zlib
+from typing import Any, Dict, Generic, List, Optional, Set, TypeVar, Union, cast
 
 import h5py
+import numpy as np
+
+# Type variables for generic typing
+T = TypeVar('T')
+RecordType = Dict[str, Any]
+PathLike = Union[str, Path]
 
 
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
-log = logging.getLogger(__name__)
+class SaverError(Exception):
+    """Base exception for all saver-related errors."""
+    pass
 
 
-class Saver(abc.ABC):
+class FileAccessError(SaverError):
+    """Raised when there's an issue accessing the file."""
+    pass
 
-    @abc.abstractmethod
-    def add(self, record):
+
+class DataValidationError(SaverError):
+    """Raised when data validation fails."""
+    pass
+
+
+class AbstractSaver(ABC, Generic[T]):
+    """Abstract base class for all data savers."""
+    
+    @abstractmethod
+    def __contains__(self, key: str) -> bool:
+        """Check if a key exists in the saved data.
+        
+        Args:
+            key: The key to check
+            
+        Returns:
+            True if the key exists, False otherwise
+        """
+        pass
+    
+    @abstractmethod
+    def add(self, record: T, force: bool = False) -> None:
+        """Add a single record to the saver.
+        
+        Args:
+            record: The record to add
+            force: If True, overwrite existing records with the same ID
+            
+        Raises:
+            DataValidationError: If the record doesn't have an _id field and force is False
+        """
+        pass
+    
+    @abstractmethod
+    def add_many(self, records: List[T], force: bool = False) -> None:
+        """Add multiple records to the saver.
+        
+        Args:
+            records: The records to add
+            force: If True, overwrite existing records with the same ID
+            
+        Raises:
+            DataValidationError: If any record doesn't have an _id field and force is False
+        """
+        pass
+    
+    @abstractmethod
+    def flush(self) -> None:
+        """Flush data to disk."""
+        pass
+    
+    @abstractmethod
+    async def add_async(self, record: T, force: bool = False) -> None:
+        """Add a single record asynchronously.
+        
+        Args:
+            record: The record to add
+            force: If True, overwrite existing records with the same ID
+            
+        Raises:
+            DataValidationError: If the record doesn't have an _id field and force is False
+        """
+        pass
+    
+    @abstractmethod
+    async def add_many_async(self, records: List[T], force: bool = False) -> None:
+        """Add multiple records asynchronously.
+        
+        Args:
+            records: The records to add
+            force: If True, overwrite existing records with the same ID
+            
+        Raises:
+            DataValidationError: If any record doesn't have an _id field and force is False
+        """
         pass
 
-    def add_many(self, records, *args, **kwargs):
-        for record in records:
-            self.add(record, *args, **kwargs)
 
-
-class GzipJsonlFile(Saver):
-    """ Save / Load / Append results in a GZipped JSONL file. """
-    def __init__(self, path, flush_every=100):
-        self.path = Path(path)
-        self._ids = set()
-        self._flush_every = flush_every
-        self._to_be_flushed = 0
-
-        if self.path.exists():
-            try:
-                with gzip.open(str(self.path), 'r') as f:
-                    self._ids = {json.loads(line)['_id'] for line in f.read().splitlines()}
-                log.info(f'Found {len(self._ids)} results')
-            except (EOFError, zlib.error) as e:
-                log.warning(f'{self.path} seems corrupt, removing and reprocessing.')
-                self.path.unlink()
-
-    def __enter__(self):
-        self.file = gzip.open(str(self.path), 'at')
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.file.close()
-
-    def __contains__(self, _id):
-        return _id in self._ids
-
-    def add(self, record, force=False):
-        _id = record['_id']
-
-        assert not (force and _id in self), f"Cannot force add existing record '{_id}' in jsonl.gz file."
-
-        if _id not in self:
-            self._ids.add(_id)
-            self.file.write(json.dumps(record) + '\n')
-
-            self._to_be_flushed += 1
-            if self._to_be_flushed == self._flush_every:
-                self.flush()
-                self._to_be_flushed = 0
-
-    def flush(self):
-        self.file.flush()
-
-
-class HDF5File(Saver):
-    """ Save / Load / Append results in a HDF5 file. """
-    def __init__(self, path, read_only=False, flush_every=100, attrs={}):
-        self.path = Path(path)
-        self.read_only = read_only
-        self.flush_every = flush_every
-        self.attrs = attrs
-
-        self.file = None
-        self._ids = dict()
-        self._to_be_flushed = 0
-
-        self._ids_dataset = None
-        self._data_dataset = None
-
-    def __enter__(self):
-        if self.read_only and not self.path.exists():
+@dataclass
+class GzipJsonlFile(AbstractSaver[RecordType]):
+    """Saver implementation for gzipped JSONL files."""
+    
+    path: PathLike
+    flush_every: int = 1000
+    _file: Optional[gzip.GzipFile] = field(default=None, init=False, repr=False)
+    _records_since_flush: int = field(default=0, init=False, repr=False)
+    _existing_ids: Set[str] = field(default_factory=set, init=False, repr=False)
+    
+    def __post_init__(self) -> None:
+        """Initialize the saver after instance creation."""
+        self.path = Path(self.path)
+        self._load_existing_ids()
+    
+    def _load_existing_ids(self) -> None:
+        """Load existing IDs from the file if it exists."""
+        if not os.path.exists(self.path):
+            return
+            
+        try:
+            with gzip.open(self.path, 'rt', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        record = json.loads(line.strip())
+                        if '_id' in record:
+                            self._existing_ids.add(record['_id'])
+                    except json.JSONDecodeError:
+                        continue
+        except (IOError, OSError) as e:
+            raise FileAccessError(f"Failed to read existing IDs from {self.path}: {e}")
+    
+    def __enter__(self) -> 'GzipJsonlFile':
+        """Context manager entry point."""
+        try:
+            self._file = gzip.open(self.path, 'at', encoding='utf-8')
             return self
+        except (IOError, OSError) as e:
+            raise FileAccessError(f"Failed to open file {self.path}: {e}")
+    
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit point."""
+        if self._file:
+            self._file.close()
+            self._file = None
+    
+    def __contains__(self, key: str) -> bool:
+        """Check if a key exists in the saved data."""
+        return key in self._existing_ids
+    
+    @functools.lru_cache(maxsize=128)
+    def _validate_record(self, record_id: str) -> None:
+        """Validate a record ID and cache the result.
+        
+        Args:
+            record_id: The record ID to validate
+            
+        Raises:
+            DataValidationError: If the record ID is invalid
+        """
+        if not record_id:
+            raise DataValidationError("Record ID cannot be empty")
+    
+    def add(self, record: RecordType, force: bool = False) -> None:
+        """Add a single record to the file."""
+        if not self._file:
+            raise RuntimeError("File is not open. Use with statement.")
+            
+        if '_id' not in record:
+            raise DataValidationError("Record must have an '_id' field")
+            
+        record_id = record['_id']
+        self._validate_record(record_id)
+            
+        if not force and record_id in self._existing_ids:
+            return
+            
+        try:
+            self._file.write(json.dumps(record) + '\n')
+            self._existing_ids.add(record_id)
+            self._records_since_flush += 1
+            
+            if self._records_since_flush >= self.flush_every:
+                self.flush()
+        except (IOError, OSError) as e:
+            raise FileAccessError(f"Failed to write record to {self.path}: {e}")
+    
+    def add_many(self, records: List[RecordType], force: bool = False) -> None:
+        """Add multiple records to the file."""
+        if not records:
+            return
+            
+        for record in records:
+            self.add(record, force)
+    
+    def flush(self) -> None:
+        """Flush data to disk."""
+        if self._file:
+            self._file.flush()
+            self._records_since_flush = 0
+    
+    async def add_async(self, record: RecordType, force: bool = False) -> None:
+        """Add a single record asynchronously."""
+        await asyncio.to_thread(self.add, record, force)
+    
+    async def add_many_async(self, records: List[RecordType], force: bool = False) -> None:
+        """Add multiple records asynchronously."""
+        if not records:
+            return
+            
+        # Process in chunks to avoid blocking
+        chunk_size = min(self.flush_every, 1000)
+        for i in range(0, len(records), chunk_size):
+            chunk = records[i:i+chunk_size]
+            await asyncio.to_thread(self.add_many, chunk, force)
 
-        mode = 'r' if self.read_only else 'a'
-        self.file = h5py.File(str(self.path), mode)
 
-        if 'ids' in self.file:
-            self._ids_dataset = self.file['ids']
-            self._data_dataset = self.file['data']
-            self._ids = {_id: i for i, _id in enumerate(self._ids_dataset.asstr())}
-
-        if not self.read_only:
-            for k, v in self.attrs.items():
-                self.file.attrs[k] = v
-
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.file:
-            self.file.close()
-
-    def __contains__(self, _id):
-        return _id in self._ids
-
-    def add(self, record, force=False):
-        assert not self.read_only, "Cannot add record to read-only HDF5 file."
-
-        feature_vector = record['feature_vector']
-        dim = len(feature_vector)
-
-        if self._ids_dataset is None:
-            self._ids_dataset = self.file.create_dataset('ids', (0,), maxshape=(None,), dtype=h5py.special_dtype(vlen=str))
-            self._data_dataset = self.file.create_dataset('data', (0, dim), maxshape=(None, dim), dtype='float32')
-
-        _id = record['_id']
-        if _id in self:
-            if not force:
-                return
-            index = self._ids[_id]
+@dataclass
+class HDF5File(AbstractSaver[RecordType]):
+    """Saver implementation for HDF5 files."""
+    
+    path: PathLike
+    flush_every: int = 1000
+    read_only: bool = False
+    attrs: Dict[str, Any] = field(default_factory=dict)
+    _file: Optional[h5py.File] = field(default=None, init=False, repr=False)
+    _records_since_flush: int = field(default=0, init=False, repr=False)
+    _existing_ids: Set[str] = field(default_factory=set, init=False, repr=False)
+    
+    def __post_init__(self) -> None:
+        """Initialize the saver after instance creation."""
+        self.path = Path(self.path)
+        self._load_existing_ids()
+    
+    def _load_existing_ids(self) -> None:
+        """Load existing IDs from the file if it exists."""
+        if not os.path.exists(self.path):
+            return
+            
+        try:
+            with h5py.File(self.path, 'r') as f:
+                self._existing_ids = set(f.keys())
+        except (IOError, OSError) as e:
+            raise FileAccessError(f"Failed to read existing IDs from {self.path}: {e}")
+    
+    def __enter__(self) -> 'HDF5File':
+        """Context manager entry point."""
+        try:
+            mode = 'r' if self.read_only else 'a'
+            self._file = h5py.File(self.path, mode)
+            
+            # Set file attributes if not read-only
+            if not self.read_only:
+                for key, value in self.attrs.items():
+                    self._file.attrs[key] = value
+                    
+            return self
+        except (IOError, OSError) as e:
+            raise FileAccessError(f"Failed to open file {self.path}: {e}")
+    
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit point."""
+        if self._file:
+            self._file.close()
+            self._file = None
+    
+    def __contains__(self, key: str) -> bool:
+        """Check if a key exists in the saved data."""
+        return key in self._existing_ids
+    
+    def add(self, record: RecordType, force: bool = False) -> None:
+        """Add a single record to the file."""
+        if not self._file:
+            raise RuntimeError("File is not open. Use with statement.")
+            
+        if self.read_only:
+            raise RuntimeError("File is opened in read-only mode")
+            
+        if '_id' not in record:
+            raise DataValidationError("Record must have an '_id' field")
+            
+        record_id = str(record['_id'])
+        
+        if not force and record_id in self._existing_ids:
+            return
+            
+        try:
+            # Remove the record if it exists and force is True
+            if force and record_id in self._file:
+                del self._file[record_id]
+                
+            # Create a group for the record
+            group = self._file.create_group(record_id)
+            
+            # Add all fields to the group
+            for key, value in record.items():
+                if key == '_id':
+                    continue
+                    
+                # Handle different types of data
+                if isinstance(value, (list, np.ndarray)):
+                    value_array = np.array(value)
+                    group.create_dataset(key, data=value_array, compression="gzip")
+                elif isinstance(value, (int, float, str, bool)):
+                    group.attrs[key] = value
+                else:
+                    # For complex types, store as JSON
+                    group.attrs[key] = json.dumps(value)
+            
+            self._existing_ids.add(record_id)
+            self._records_since_flush += 1
+            
+            if self._records_since_flush >= self.flush_every:
+                self.flush()
+        except (IOError, OSError) as e:
+            raise FileAccessError(f"Failed to write record to {self.path}: {e}")
+    
+    def add_many(self, records: List[RecordType], force: bool = False) -> None:
+        """Add multiple records to the file."""
+        if not records:
+            return
+            
+        for record in records:
+            self.add(record, force)
+    
+    def flush(self) -> None:
+        """Flush data to disk."""
+        if self._file:
+            self._file.flush()
+            self._records_since_flush = 0
+    
+    async def add_async(self, record: RecordType, force: bool = False) -> None:
+        """Add a single record asynchronously."""
+        await asyncio.to_thread(self.add, record, force)
+    
+    async def add_many_async(self, records: List[RecordType], force: bool = False) -> None:
+        """Add multiple records asynchronously."""
+        if not records:
+            return
+            
+        # Process in chunks to avoid blocking
+        chunk_size = min(self.flush_every, 1000)
+        for i in range(0, len(records), chunk_size):
+            chunk = records[i:i+chunk_size]
+            await asyncio.to_thread(self.add_many, chunk, force)
+            
+    @functools.lru_cache(maxsize=128)
+    def get_cached(self, record_id: str, field_name: str) -> Any:
+        """Get a field from a record with caching.
+        
+        Args:
+            record_id: The ID of the record
+            field_name: The name of the field to get
+            
+        Returns:
+            The field value
+            
+        Raises:
+            KeyError: If the record or field doesn't exist
+        """
+        if not self._file:
+            raise RuntimeError("File is not open. Use with statement.")
+            
+        if record_id not in self._file:
+            raise KeyError(f"Record {record_id} not found")
+            
+        group = self._file[record_id]
+        
+        if field_name in group.attrs:
+            value = group.attrs[field_name]
+            # Try to parse JSON if it looks like it
+            if isinstance(value, str) and value.startswith('{') and value.endswith('}'):
+                try:
+                    return json.loads(value)
+                except json.JSONDecodeError:
+                    return value
+            return value
+        elif field_name in group:
+            return group[field_name][:]
         else:
-            index = len(self._ids)
-            self._ids_dataset.resize((index + 1,))
-            self._data_dataset.resize((index + 1, dim))
-            self._ids[_id] = index
-
-        self._ids_dataset[index] = _id
-        self._data_dataset[index, :] = feature_vector
-
-        self._to_be_flushed += 1
-        if self._to_be_flushed == self.flush_every:
-            self.flush()
-            self._to_be_flushed = 0
-
-    def flush(self):
-        self.file.flush()
+            raise KeyError(f"Field {field_name} not found in record {record_id}")
