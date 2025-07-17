@@ -51,6 +51,56 @@ To enhance throughput and responsiveness, parallelization and concurrency mechan
 *   **Asynchronous Processing with `asyncio`:**
     *   The `savers.py` module now includes `add_async` and `add_many_async` methods for non-blocking writes.
     *   The `extractor.py` module features an asynchronous processing pipeline (`_run_async`, `extract_iterable_async`) for I/O-bound tasks and potentially overlapping computation with data loading.
+
+---
+
+## 5. Phase 1 Stabilization: Reproducible Ingestion & Search Pipeline
+
+### Environment Variable Setup
+- See `.env.example` for all required variables (paths, ports, credentials, service URLs).
+- Copy to `.env` and customize for your deployment.
+
+### Accessing Original Video Files via /original/
+
+- The NGINX router exposes `/original/<relative_path>` for direct access to untouched video files, supporting subfolders.
+- All original files must be stored under `/data/original-videos/` (with subfolders allowed).
+- The `original_path` field in Elasticsearch stores the relative path from `/data/original-videos/`.
+- To construct a public URL for the original file:
+  - `http://<your-server>/original/<original_path>`
+  - Example: `original_path = "2025/07/17/bunny.mp4"` → `http://yourhost/original/2025/07/17/bunny.mp4`
+- Downstream API/web apps should use this convention for download/preview links.
+- **Security note:** If originals are sensitive, add authentication or signed URLs to the NGINX location block.
+
+### Video Preprocessing and Ingestion Pipeline
+- Use `visione/preprocess_videos.py` to standardize all raw videos:
+    - Converts to MP4 (H.264/AAC), max 1080p, 8-bit RGB, preserves audio.
+    - Uses GPU acceleration if available, falls back to CPU.
+    - Input: `raw_videos/` (configurable), Output: `videos/` (configurable).
+    - Parallelized for speed. Logs all actions/errors.
+    - Example: `python visione/preprocess_videos.py`
+
+### Version Logging
+- Use `visione/log_versions.py` to print all core library versions at service startup:
+    - Ensures runtime reproducibility and fast debugging.
+    - Example: `python visione/log_versions.py`
+
+### Elasticsearch Metadata Integration
+- Use `visione/es_video_metadata.py` to index video metadata in Elasticsearch:
+    - Stores original and preprocessed file paths, checksums, and optional thumbnails.
+    - Example: `python visione/es_video_metadata.py <original_path> <preprocessed_path> [thumbnail_path]`
+    - Configure ES host/index via env vars: `VISIONE_ES_HOST`, `VISIONE_ES_PORT`, `VISIONE_ES_INDEX`.
+
+### Workflow Summary
+1. Place raw videos in `raw_videos/`.
+2. Run preprocessing: `python visione/preprocess_videos.py`.
+3. For each video, index metadata: `python visione/es_video_metadata.py ...` (can be automated post-processing).
+4. Use `visione import --no-copy --bulk` to ingest preprocessed videos.
+5. At service startup, call `python visione/log_versions.py` for version traceability.
+
+---
+
+This foundation ensures robust, reproducible, and future-proof video ingestion and search for Visione Phase 1.
+
 *   **Optimized CPU/GPU Parallelism:**
     *   By using batch processing and asynchronous data handling, the system aims to keep both CPU (for data loading/preprocessing) and GPU (for model inference) busy, improving overall throughput.
     *   The use of multiple workers (configurable via `--num-workers` in base extractors, though full implementation depends on specific extractor logic) can further leverage multi-core CPUs.

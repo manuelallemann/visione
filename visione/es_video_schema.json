@@ -1,0 +1,17 @@
+{
+  "mappings": {
+    "properties": {
+      "original_path": { "type": "keyword" },
+      "preprocessed_path": { "type": "keyword" },
+      "thumbnail_path": { "type": "keyword", "null_value": "" },
+      "original_checksum": { "type": "keyword" },
+      "preprocessed_checksum": { "type": "keyword" },
+      "created_at": { "type": "date", "format": "strict_date_optional_time||epoch_millis" },
+      "duration": { "type": "float" },
+      "width": { "type": "integer" },
+      "height": { "type": "integer" },
+      "fps": { "type": "float" },
+      "metadata": { "type": "object", "enabled": true }
+    }
+  }
+}

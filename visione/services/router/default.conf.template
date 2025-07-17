@@ -16,6 +16,11 @@ server {
 	### Static File Routing
 
 	location ^~ /videos      { access_log off; proxy_pass ${VISIONE_VIDEOS_URL}; }
+	location ^~ /original/ {
+		access_log off;
+		alias /data/original-videos/;
+	}
+
 	location ^~ /videos/tiny { access_log off; proxy_pass ${VISIONE_RESIZED_VIDEOS_URL}; }
 	location ^~ /frames      { access_log off; proxy_pass ${VISIONE_FRAMES_URL}; }
 	location ^~ /frames/tiny { access_log off; proxy_pass ${VISIONE_RESIZED_FRAMES_URL}; }
