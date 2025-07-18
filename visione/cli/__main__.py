@@ -27,7 +27,7 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', help="Show verbose output. Useful for debugging.")
     subparsers = parser.add_subparsers(help='command')
 
-    for command in commands.available_commands:
+    for command in commands.COMMANDS:
         command(compose_dir, collection_dir, cache_dir).add_arguments(subparsers)
 
     if len(sys.argv) < 2:
