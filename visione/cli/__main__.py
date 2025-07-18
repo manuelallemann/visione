@@ -30,6 +30,9 @@ def main():
     for command in commands.COMMANDS:
         command(compose_dir, collection_dir, cache_dir).add_arguments(subparsers)
 
+    from .commands.transcode import TranscodeCommand
+    TranscodeCommand.register_command(subparsers)
+
     if len(sys.argv) < 2:
         parser.print_usage()
         sys.exit(1)

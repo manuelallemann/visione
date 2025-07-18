@@ -27,7 +27,6 @@ COMMANDS: List[Type[BaseCommand]] = [
     ServeCommand,
     ComposeCommand,
     RemoveCommand,
-    TranscodeCommand, # Added the new TranscodeCommand
 ]
 
 __all__ = [
