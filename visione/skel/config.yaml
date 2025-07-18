@@ -372,6 +372,26 @@ index:
       index_engine: faiss
       index_type: Flat
 
+# Example configuration for Visione Phase 1 preprocessing
+preprocessing:
+  raw_video_dir: raw_videos
+  output_video_dir: videos
+  max_workers: 2
+  ffmpeg_path: ffmpeg
+  video_codec: h264_nvenc   # Use 'libx264' for CPU fallback
+  audio_codec: aac
+  audio_bitrate: 192k
+  audio_sample_rate: 44100
+  audio_channels: 2
+  max_resolution: 1080
+  color_format: rgb24
+  pixel_format: yuv420p
+  faststart: true
+  preset: fast
+  skip_existing: true
+  loglevel: error
+  # Add more options as needed
+
 # This section contains the configuration for the user interface.
 ui:
   # Maximum number of results per video to display in a row.

@@ -80,6 +80,9 @@ def process_all():
     files = []
     for ext in SUPPORTED_INPUTS:
         files.extend(glob.glob(os.path.join(RAW_VIDEO_DIR, f'*{ext}')))
+    if not files:
+        print(f"No supported video files found in {RAW_VIDEO_DIR}. Nothing to do.")
+        return
     use_gpu = has_gpu_ffmpeg()
     def process_one(f):
         # Normalize input filename and output path
