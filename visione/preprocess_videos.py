@@ -3,6 +3,7 @@ import subprocess
 import sys
 import glob
 from concurrent.futures import ThreadPoolExecutor
+from visione.normalize_utils import normalize_path, normalize_filename
 
 # Configuration
 RAW_VIDEO_DIR = os.environ.get('VISIONE_RAW_VIDEO_DIR', 'raw_videos')
@@ -81,12 +82,16 @@ def process_all():
         files.extend(glob.glob(os.path.join(RAW_VIDEO_DIR, f'*{ext}')))
     use_gpu = has_gpu_ffmpeg()
     def process_one(f):
-        out = os.path.join(OUTPUT_VIDEO_DIR, os.path.splitext(os.path.basename(f))[0] + '.mp4')
+        # Normalize input filename and output path
+        norm_in = normalize_path(f)
+        norm_out_name = normalize_filename(os.path.splitext(os.path.basename(norm_in))[0]) + '.mp4'
+        norm_out_dir = normalize_path(OUTPUT_VIDEO_DIR)
+        out = os.path.join(norm_out_dir, norm_out_name)
         if os.path.exists(out):
             print(f"Skipping {out}, already exists.")
             return
-        if preprocess_video(f, out, use_gpu=use_gpu) or preprocess_video(f, out, use_gpu=False):
-            index_to_elasticsearch(f, out)
+        if preprocess_video(norm_in, out, use_gpu=use_gpu) or preprocess_video(norm_in, out, use_gpu=False):
+            index_to_elasticsearch(norm_in, out)
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
         pool.map(process_one, files)
 
