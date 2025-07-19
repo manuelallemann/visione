@@ -4,7 +4,7 @@ import json
 from elasticsearch import Elasticsearch
 
 ES_HOST = os.environ.get('VISIONE_ES_HOST', 'localhost')
-ES_PORT = os.environ.get('VISIONE_ES_PORT', '9200')
+ES_PORT = int(os.environ.get('VISIONE_ES_PORT', '9200'))
 ES_INDEX = os.environ.get('VISIONE_ES_INDEX', 'videos')
 
 es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT, 'scheme': 'http'}])
