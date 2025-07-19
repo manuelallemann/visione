@@ -20,19 +20,38 @@ def get_relative_original_path(original_path):
     # If absolute, strip to relative from original-videos root
     # Handles /data/original-videos/ and subfolders
     import os
+    # 1. If collection defines VISIONE_ORIGINAL_VIDEO_DIR, use that anchor
     base = os.environ.get('VISIONE_ORIGINAL_VIDEO_DIR', '/data/original-videos')
     abs_base = os.path.abspath(base)
     abs_path = os.path.abspath(original_path)
     if abs_path.startswith(abs_base):
         rel_path = os.path.relpath(abs_path, abs_base)
         return rel_path.replace('\\', '/')
+
+    # 2. If the path contains a '/raw_videos/' segment (standard Visione layout)
+    marker = os.sep + 'raw_videos' + os.sep
+    if marker in abs_path:
+        rel_path = abs_path.split(marker, 1)[1]
+        return rel_path.replace('\\', '/')
+
+    # 3. Fallback to filename only
     return os.path.basename(original_path)
 
+def get_relative_preprocessed_path(pre_path):
+    abs_path = os.path.abspath(pre_path)
+    marker = os.sep + 'videos' + os.sep
+    if marker in abs_path:
+        rel_path = abs_path.split(marker, 1)[1]
+        return '/' + rel_path.replace('\\', '/')
+    return pre_path  # fallback absolute
+
+
 def index_video_metadata(original_path, preprocessed_path, thumbnail_path=None):
-    rel_original_path = get_relative_original_path(original_path)
+    rel_original_path = '/' + get_relative_original_path(original_path).lstrip('/')
+    rel_pre_path = get_relative_preprocessed_path(preprocessed_path)
     doc = {
         'original_path': rel_original_path,
-        'preprocessed_path': preprocessed_path,
+        'preprocessed_path': rel_pre_path,
         'thumbnail_path': thumbnail_path,
         'original_checksum': file_checksum(original_path) if os.path.exists(original_path) else None,
         'preprocessed_checksum': file_checksum(preprocessed_path) if os.path.exists(preprocessed_path) else None,
