@@ -15,6 +15,7 @@ from .init import InitCommand
 from .remove import RemoveCommand
 from .serve import ServeCommand
 from .transcode import TranscodeCommand
+from .preprocess import PreprocessCommand
 
 # List of all available commands
 # The order here might influence the help output if the CLI tool sorts them as is.
@@ -22,6 +23,7 @@ COMMANDS: List[Type[BaseCommand]] = [
     InitCommand,
     AddCommand,
     ImportCommand,
+    PreprocessCommand,
     AnalyzeCommand,
     IndexCommand,
     ServeCommand,
@@ -40,5 +42,6 @@ __all__ = [
     "ComposeCommand",
     "RemoveCommand",
     "TranscodeCommand",
+    "PreprocessCommand",
     "BaseCommand", # Exporting BaseCommand if it's used externally
 ]

@@ -80,22 +80,22 @@ To enhance throughput and responsiveness, parallelization and concurrency mechan
     - Example: `python visione/preprocess_videos.py`
 
 ### Version Logging
-- Use `visione/log_versions.py` to print all core library versions at service startup:
+- Use `visione/utils/log_versions.py` to print all core library versions at service startup:
     - Ensures runtime reproducibility and fast debugging.
-    - Example: `python visione/log_versions.py`
+    - Example: `python -m visione.utils.log_versions`
 
 ### Elasticsearch Metadata Integration
-- Use `visione/es_video_metadata.py` to index video metadata in Elasticsearch:
+- Use `visione/utils/es_video_metadata.py` to index video metadata in Elasticsearch:
     - Stores original and preprocessed file paths, checksums, and optional thumbnails.
-    - Example: `python visione/es_video_metadata.py <original_path> <preprocessed_path> [thumbnail_path]`
+    - Example: `python -m visione.utils.es_video_metadata <original_path> <preprocessed_path> [thumbnail_path]`
     - Configure ES host/index via env vars: `VISIONE_ES_HOST`, `VISIONE_ES_PORT`, `VISIONE_ES_INDEX`.
 
 ### Workflow Summary
 1. Place raw videos in `raw_videos/`.
-2. Run preprocessing: `python visione/preprocess_videos.py`.
-3. For each video, index metadata: `python visione/es_video_metadata.py ...` (can be automated post-processing).
+2. Run preprocessing using the CLI command: `visione preprocess`.
+3. Metadata is now automatically indexed by the `visione preprocess` command.
 4. Use `visione import --no-copy --bulk` to ingest preprocessed videos.
-5. At service startup, call `python visione/log_versions.py` for version traceability.
+5. At service startup, call `python -m visione.utils.log_versions` for version traceability.
 
 ---
 
