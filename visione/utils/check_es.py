@@ -11,6 +11,7 @@ def check_elasticsearch(collection_path):
     """
     Connects to Elasticsearch, checks for the index, and verifies the setup.
     """
+    print("*** Running check_es.py v2 with verbose logging ***")
     # --- Enable Verbose Logging ---
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
