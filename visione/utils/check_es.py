@@ -1,19 +1,33 @@
 import os
 import json
 import sys
+import yaml
 from elasticsearch import Elasticsearch, exceptions
 
-# --- Configuration ---
-ES_HOST = os.environ.get('VISIONE_ES_HOST', 'localhost')
-ES_PORT = int(os.environ.get('VISIONE_ES_PORT', 9200))
-ES_INDEX = os.environ.get('VISIONE_ES_INDEX', 'videos')
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), 'es_video_schema.json')
 
-def check_elasticsearch():
+def check_elasticsearch(collection_path):
     """
     Connects to Elasticsearch, checks for the index, and verifies the setup.
     """
-    print("--- Elasticsearch Connection Test ---")
+    # --- Configuration ---
+    config_path = os.path.join(collection_path, 'config.yaml')
+    print(f"--- Elasticsearch Connection Test ---")
+    print(f"Reading configuration from: {config_path}")
+    try:
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        if not config:
+            config = {}
+    except FileNotFoundError:
+        print(f"\033[91mFAILURE:\033[0m Configuration file not found at {config_path}")
+        sys.exit(1)
+
+    es_config = config.get('elasticsearch', {})
+    ES_HOST = es_config.get('host', 'localhost')
+    ES_PORT = es_config.get('port', 9200)
+    ES_INDEX = es_config.get('index', 'videos')
+
     print(f"Attempting to connect to: http://{ES_HOST}:{ES_PORT}")
 
     try:
@@ -70,4 +84,8 @@ def check_elasticsearch():
     print("Your Elasticsearch connection and index appear to be configured correctly.")
 
 if __name__ == '__main__':
-    check_elasticsearch()
+    if len(sys.argv) != 2:
+        print("Usage: python -m visione.utils.check_es <path_to_collection_directory>")
+        sys.exit(1)
+    collection_path = sys.argv[1]
+    check_elasticsearch(collection_path)

@@ -98,6 +98,50 @@ analysis:
     clip-datacomp:
       batch-size: 1   # Batch size
       num-workers: 8  # Number of workers
+
+# ------------------------------------------------------------------------------
+# Preprocessing Configuration
+# ------------------------------------------------------------------------------
+# This section contains settings for the 'visione preprocess' command, which
+# transcodes raw videos into a web-friendly format.
+# ------------------------------------------------------------------------------
+preprocessing:
+  # Directory where raw, unprocessed videos are located, relative to the
+  # collection root.
+  raw_video_dir: raw_videos
+
+  # Directory where preprocessed videos will be saved, relative to the
+  # collection root.
+  output_video_dir: videos
+
+  # Maximum number of videos to process in parallel.
+  max_workers: 2
+
+  # Path to the ffmpeg executable.
+  ffmpeg_path: ffmpeg
+
+  # If true, skip videos that already exist in the output directory.
+  skip_existing: true
+
+# ------------------------------------------------------------------------------
+# Elasticsearch Configuration
+# ------------------------------------------------------------------------------
+# This section contains the connection details for your Elasticsearch instance,
+# which is used for indexing and searching video metadata.
+# ------------------------------------------------------------------------------
+elasticsearch:
+  # The hostname or IP address of your Elasticsearch server.
+  # If it's running on the same machine, 'localhost' is usually correct.
+  # If it's running in a Docker container, this might be the container name.
+  host: localhost
+
+  # The port that Elasticsearch is listening on. The default is 9200.
+  port: 9200
+
+  # The name of the index where video metadata will be stored.
+  # The default and recommended name is 'videos'.
+  index: videos
+
     biomed-clip:
       batch-size: 1   # Batch size
       num-workers: 8  # Number of workers
