@@ -117,11 +117,5 @@ class PreprocessCommand(BaseCommand):
         try:
             from ...utils.es_video_metadata import index_video_metadata
             index_video_metadata(original_path, preprocessed_path, thumbnail_path)
-        except ImportError:
-            cmd = [sys.executable, os.path.join(os.path.dirname(__file__), '..', '..', 'utils', 'es_video_metadata.py'), original_path, preprocessed_path]
-            if thumbnail_path:
-                cmd.append(thumbnail_path)
-            try:
-                subprocess.check_call(cmd)
-            except Exception as e:
-                print(f"[WARN] Could not index video in Elasticsearch: {e}")
+        except Exception as e:
+            print(f"[WARN] Could not index video in Elasticsearch: {e}")
