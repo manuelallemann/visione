@@ -3,6 +3,7 @@ import json
 import sys
 import yaml
 import logging
+import socket
 from elasticsearch import Elasticsearch, exceptions
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), 'es_video_schema.json')
@@ -40,6 +41,21 @@ def check_elasticsearch(collection_path):
 
     print(f"Attempting to connect to: http://{ES_HOST}:{ES_PORT}")
 
+    # --- Low-level Socket Test ---
+    print("\nPerforming low-level socket connection test...")
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)  # 5-second timeout
+        result = sock.connect_ex((ES_HOST, ES_PORT))
+        if result == 0:
+            print("\033[92mSUCCESS:\033[0m Low-level socket connection successful.")
+        else:
+            print(f"\033[91mFAILURE:\033[0m Low-level socket connection failed. Error code: {result}")
+        sock.close()
+    except Exception as e:
+        print(f"\033[91mFAILURE:\033[0m Low-level socket test threw an exception: {e}")
+
+    print("\nAttempting connection with Elasticsearch library...")
     try:
         es = Elasticsearch([{'host': ES_HOST, 'port': ES_PORT, 'scheme': 'http'}])
         if not es.ping():
