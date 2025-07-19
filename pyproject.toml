@@ -35,9 +35,12 @@ visione = "visione.cli:__main__.main"
 
 [tool.setuptools]
 packages = [
+  "visione",
   "visione.cli",
+  "visione.cli.commands",
   "visione.services",
   "visione.skel",
+  "visione.utils",
 ]
 
 [tool.setuptools.dynamic]
