@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import yaml
+import logging
 from elasticsearch import Elasticsearch, exceptions
 
 SCHEMA_PATH = os.path.join(os.path.dirname(__file__), 'es_video_schema.json')
@@ -10,9 +11,17 @@ def check_elasticsearch(collection_path):
     """
     Connects to Elasticsearch, checks for the index, and verifies the setup.
     """
+    # --- Enable Verbose Logging ---
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    handler.setFormatter(formatter)
+    es_logger = logging.getLogger('elasticsearch')
+    es_logger.addHandler(handler)
+    es_logger.setLevel(logging.DEBUG)
+
     # --- Configuration ---
     config_path = os.path.join(collection_path, 'config.yaml')
-    print(f"--- Elasticsearch Connection Test ---")
+    print(f"\n--- Elasticsearch Connection Test ---")
     print(f"Reading configuration from: {config_path}")
     try:
         with open(config_path, 'r') as f:
@@ -36,8 +45,9 @@ def check_elasticsearch(collection_path):
             raise exceptions.ConnectionError("Ping failed. Check host and port.")
         print("\033[92mSUCCESS:\033[0m Connection to Elasticsearch established.")
     except exceptions.ConnectionError as e:
-        print(f"\033[91mFAILURE:\033[0m Could not connect to Elasticsearch. Error: {e}")
+        print(f"\n\033[91mFAILURE:\033[0m Could not connect to Elasticsearch. Error: {e}")
         print("\nPlease ensure Elasticsearch is running and accessible at the specified host and port.")
+        print("See detailed logs above for more information.")
         sys.exit(1)
 
     # --- Check Index ---
