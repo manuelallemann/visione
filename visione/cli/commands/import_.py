@@ -209,57 +209,74 @@ class ImportCommand(BaseCommand):
         do_thumbs,
     ):
         progress_cols = [SpinnerColumn(), *Progress.get_default_columns(), MofNCompleteColumn(), TimeElapsedColumn()]
+        skipped_files = []
         with Progress(*progress_cols, transient=not self.develop_mode) as progress, \
              concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as executor:
 
-            def map_with_progress(func, iterable, description=None, total=None):
+            def safe_func(func, arg, stage):
+                try:
+                    return func(arg)
+                except Exception as e:
+                    fname = getattr(arg, 'path', str(arg))
+                    skipped_files.append((fname, stage, str(e)))
+                    progress.console.log(f"[red]Skipped {fname} during {stage}: {e}")
+                    return None
+
+            def map_with_progress(func, iterable, description=None, total=None, stage=None):
                 total = total if total else len(iterable) if hasattr(iterable, '__len__') else None
                 task = progress.add_task(description, total=total)
-
-                futures = [executor.submit(func, it) for it in iterable]
+                futures = [executor.submit(safe_func, func, it, stage) for it in iterable]
                 results = []
                 for future in concurrent.futures.as_completed(futures):
                     results.append(future.result())
                     progress.advance(task)
-
                 return results
 
             # copy all video files
             if do_copy:
-                video_ids_and_paths = map_with_progress(self.copy_or_download_video, video_paths, description='Copying video files')
+                video_ids_and_paths = map_with_progress(self.copy_or_download_video, video_paths, description='Copying video files', stage='copy')
+                video_ids_and_paths = [v for v in video_ids_and_paths if v is not None]
             else:
                 video_ids_and_paths = [self.get_video_id_and_path(v) for v in video_paths]
 
             # create all resized videos
             if do_resize:
                 func = lambda x: self.create_resized_videos(x[1], x[0], replace, gpu)
-                map_with_progress(func, video_ids_and_paths, description='Resizing videos')
+                map_with_progress(func, video_ids_and_paths, description='Resizing videos', stage='resize')
 
             if do_scenes:
-                # detect scenes and extract frames
                 func = lambda x: self.detect_scenes(x[1], x[0], scene_detection_params, scene_max_length, force=replace)
-                map_with_progress(func, video_ids_and_paths, description='Detecting scenes')
+                map_with_progress(func, video_ids_and_paths, description='Detecting scenes', stage='scenes')
 
             if do_frames:
                 func = lambda x: self.extract_frames(x[1], x[0], force=replace)
-                map_with_progress(func, video_ids_and_paths, description='Extracting frames')
+                map_with_progress(func, video_ids_and_paths, description='Extracting frames', stage='frames')
 
             if do_thumbs:
-                # create frames thumbnails
                 func = lambda x: self.create_frames_thumbnails(x[0], replace)
-                map_with_progress(func, video_ids_and_paths, description='Generating thumbs')
+                map_with_progress(func, video_ids_and_paths, description='Generating thumbs', stage='thumbs')
 
-            progress.console.log('Import complete.')
+        if skipped_files:
+            print("\n[WARNING] The following files were skipped during import:")
+            for fname, stage, err in skipped_files:
+                print(f"  - {fname} (stage: {stage}): {err}")
+            # Write to log file in collection directory
+            log_path = self.collection_dir / "skipped_imports.log"
+            with open(log_path, "w", encoding="utf-8") as f:
+                f.write("The following files were skipped during import:\n")
+                for fname, stage, err in skipped_files:
+                    f.write(f"  - {fname} (stage: {stage}): {err}\n")
+                f.write("\nTotal skipped: %d\n" % len(skipped_files))
+            print(f"[INFO] Skipped files log written to: {log_path}")
+        else:
+            print("\nAll files processed successfully.")
 
-        # if bulk import, return an empty list to represent all imported videos
-        # otherwise, return the video ID of the imported video
-        # XXX this is for supporting the 'add' cli command but the interface needs to be improved
-        return []
 
     def get_video_id_and_path(self, video_path, video_id=None):
         """ Returns the video ID and path given a video path or URL.
 
         Args:
+{{ ... }}
             video_path_or_url (str or pathlib.Path): Local path or URL of the video.
             video_id (str, optional): New ID of the downloaded video. If None, take the video file stem as video ID. Defaults to None.
 
