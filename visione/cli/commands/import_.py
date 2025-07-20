@@ -88,14 +88,7 @@ class ImportCommand(BaseCommand):
             videos_dir = self.collection_dir / 'videos'
             # Recursively find all video files in videos/ and subfolders
             video_paths = [v for v in videos_dir.glob('**/*') if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS]
-
-            # Get a set of already imported video IDs (stems) at the top level of videos/
-            imported_ids = {v.stem for v in videos_dir.glob('*') if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS}
-
-            # Only import videos whose stem is not already present at the top level
-            video_paths = [v for v in video_paths if v.stem not in imported_ids]
             video_paths.sort()
-            assert len({v.stem for v in video_paths}) == len(video_paths), "Duplicate video IDs found in recursive import from 'videos' directory."
             video_paths = [urllib.parse.urlparse(str(v)) for v in video_paths]
         else:
             # import a single video
@@ -308,7 +301,16 @@ class ImportCommand(BaseCommand):
         """
 
         video_id, video_out = self.get_video_id_and_path(video_path_or_url, video_id)
-        if video_out.exists() and (not replace or video_out.samefile(video_path_or_url)):
+        orig_video_id = video_id
+        dub_idx = 1
+        # If file exists and not replace, find a unique name
+        while video_out.exists() and (not replace or video_out.samefile(video_path_or_url)):
+            # Only rename if not the same file
+            new_video_id = f"{orig_video_id}_dub{dub_idx}"
+            video_id = new_video_id
+            video_out = self.collection_dir / 'videos' / f'{video_id}{video_out.suffix}'
+            dub_idx += 1
+        if video_out.exists() and not video_out.samefile(video_path_or_url):
             print(f'Using existing video file: {video_out.name}')
             if show_progress:
                 show_progress(1, 1)  # set as completed
