@@ -255,7 +255,7 @@ class ColorExtractor(BaseExtractor):
             yield from pool.imap(self.extract_one, image_paths)
 
 
-from visione.services.common.extractor import CliProgress
+from services.common.extractor import CliProgress
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract color annotations.')
