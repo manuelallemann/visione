@@ -144,8 +144,7 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
         super(CLIP2VideoExtractor, cls).add_arguments(parser)
         parser.add_argument('--pad-shot-to', type=float, default=0.0, help="Pad shots shorter than this duration (in seconds) before extracting features")
         parser.add_argument('--input-size', type=int, default=224, help="Size of the input images to the model")
-        parser.add_argument('--batch-size', type=int, default=1, help="Batch size")
-        parser.add_argument('--num-workers', type=int, default=0, help="Number of workers for data loading")
+
 
     def __init__(self, args):
         super(CLIP2VideoExtractor, self).__init__(args)
