@@ -159,7 +159,6 @@ class GzipJsonlFile(AbstractSaver[RecordType]):
         """Check if a key exists in the saved data."""
         return key in self._existing_ids
     
-    @functools.lru_cache(maxsize=128)
     def _validate_record(self, record_id: str) -> None:
         """Validate a record ID and cache the result.
         
@@ -169,6 +168,8 @@ class GzipJsonlFile(AbstractSaver[RecordType]):
         Raises:
             DataValidationError: If the record ID is invalid
         """
+        if not isinstance(record_id, str):
+            raise DataValidationError(f"Record ID must be a string, got {type(record_id)}")
         if not record_id:
             raise DataValidationError("Record ID cannot be empty")
     
