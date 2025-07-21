@@ -176,7 +176,9 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
             self.model = self.model.to(self.device)
             self.model.eval()
 
-            self.processor = AutoProcessor.from_pretrained("microsoft/xclip-base-patch16")
+            hf_cache = os.path.join(os.getenv("VISIONE_CACHE", "/tmp"), "huggingface")
+        os.makedirs(hf_cache, exist_ok=True)
+        self.processor = AutoProcessor.from_pretrained("microsoft/xclip-base-patch16", cache_dir=hf_cache)
 
     def forward_batch(self, video):
         video = video.to(self.device)

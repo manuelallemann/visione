@@ -187,6 +187,11 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
             self.model = self.model.to(self.device)
             self.model.eval()
 
+            # Ensure HuggingFace cache dir is set up for downstream model/processors
+            hf_cache = os.path.join(os.getenv('VISIONE_CACHE', '/tmp'), 'huggingface')
+            os.makedirs(hf_cache, exist_ok=True)
+
+
     def forward_batch(self, batch):
         video, video_mask, shot_ids = batch
         video, video_mask = video.to(self.device), video_mask.to(self.device)
