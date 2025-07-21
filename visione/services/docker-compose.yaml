@@ -18,7 +18,7 @@ services:
       - ./router:/etc/nginx/templates/
       - ./web-ui:/usr/share/nginx/html:ro
       - ${VISIONE_ROOT}:/data:ro
-      - ./cache:/cache
+
     depends_on: ["core"]
     profiles: ["query", "router"]
 
