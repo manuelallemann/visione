@@ -55,7 +55,18 @@ class DinoV2Extractor(BaseExtractor):
     def setup(self):
         if self.model is None:
             self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
-            self.model = torch.hub.load('facebookresearch/dinov2', self.args.model).to(self.device)
+            import os
+            cache_dir = os.environ.get('VISIONE_CACHE', '/tmp/torch_hub')
+            os.makedirs(cache_dir, exist_ok=True)
+            import torch
+            torch.hub.set_dir(cache_dir)
+            try:
+                self.model = torch.hub.load('facebookresearch/dinov2', self.args.model).to(self.device)
+            except PermissionError:
+                temp_cache = '/tmp/torch_hub_temp'
+                os.makedirs(temp_cache, exist_ok=True)
+                torch.hub.set_dir(temp_cache)
+                self.model = torch.hub.load('facebookresearch/dinov2', self.args.model).to(self.device)
             self.model.eval()
 
     def extract(self, image_paths):

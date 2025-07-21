@@ -74,8 +74,12 @@ class OpenCLIPExtractor(BaseExtractor):
         if self.model is None:
             # lazy load models
             self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
-            os.makedirs('/cache/open_clip', exist_ok=True)
-            self.model, _, self.processor = open_clip.create_model_and_transforms(self.args.model_handle, cache_dir='/cache/open_clip')
+            import os
+            cache_dir = os.path.join(os.environ.get('VISIONE_CACHE', '/tmp'), 'huggingface')
+            os.makedirs(cache_dir, exist_ok=True)
+            import open_clip
+            self.model = open_clip.create_model(self.args.model_handle).to(self.device)
+            self.processor = open_clip.get_processor(self.args.model_handle)
             self.model.to(self.device)
             self.model.eval()
 

@@ -77,8 +77,12 @@ class CLIPExtractor(BaseExtractor):
         if self.model is None:
             # lazy load models
             self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
-            self.model = CLIPModel.from_pretrained(self.args.model_handle).to(self.device)
-            self.processor = CLIPProcessor.from_pretrained(self.args.model_handle)
+            import os
+            cache_dir = os.path.join(os.environ.get('VISIONE_CACHE', '/tmp'), 'huggingface')
+            os.makedirs(cache_dir, exist_ok=True)
+            from transformers import CLIPModel, CLIPProcessor
+            self.model = CLIPModel.from_pretrained(self.args.model_handle, cache_dir=cache_dir).to(self.device)
+            self.processor = CLIPProcessor.from_pretrained(self.args.model_handle, cache_dir=cache_dir)
 
     def extract(self, image_paths):
         batch_size = len(image_paths)
