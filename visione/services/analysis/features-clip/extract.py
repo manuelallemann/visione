@@ -65,8 +65,6 @@ class CLIPExtractor(BaseExtractor):
     @classmethod
     def add_arguments(cls, parser):
         parser.add_argument('--model-handle', default=os.environ['MODEL_HANDLE'], help='hugging face handle of the CLIP model')
-        parser.add_argument('--batch-size', default=1, type=int, help='batch size')
-        parser.add_argument('--num-workers', default=4, type=int, help='number of workers')
         super(CLIPExtractor, cls).add_arguments(parser)
 
     def __init__(self, args):

@@ -148,8 +148,6 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
         parser.add_argument('--pad-shot-to', type=float, default=0.0, help="Pad shots shorter than this duration (in seconds) before extracting features")
         parser.add_argument('--shot-fps', type=float, default=5, help="FPS to use when extracting shots from videos")
         parser.add_argument('--input-size', type=int, default=224, help="Size of the input images to the model")
-        parser.add_argument('--batch-size', type=int, default=1, help="Batch size")
-        parser.add_argument('--num-workers', type=int, default=0, help="Number of workers for data loading")
         parser.add_argument('--ffmpeg-threads', type=int, default=2, help="Number of threads to use for each ffmpeg worker")
 
     def __init__(self, args):
