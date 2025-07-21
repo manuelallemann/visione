@@ -21,7 +21,7 @@ loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
 for logger in loggers:
     logger.setLevel(logging.WARNING)
 
-logging.basicConfig(fname='/data/clipvip.log', level=logging.INFO)
+logging.basicConfig(filename='/data/clipvip.log', level=logging.INFO)
 
 
 def read_video_pyav(container, indices, start_time, how_many_frames):
