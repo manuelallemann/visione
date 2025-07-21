@@ -4,6 +4,7 @@ import av
 import gc
 import logging
 import math
+import os
 
 import more_itertools
 from easydict import EasyDict as edict
@@ -179,7 +180,7 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
             self.model.eval()
 
             hf_cache = os.path.join(os.getenv("VISIONE_CACHE", "/tmp"), "huggingface")
-        os.makedirs(hf_cache, exist_ok=True)
+            os.makedirs(hf_cache, exist_ok=True)
         self.processor = AutoProcessor.from_pretrained("microsoft/xclip-base-patch16", cache_dir=hf_cache)
 
     def forward_batch(self, video):
