@@ -6,7 +6,9 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 ENV PYTHONPATH "${PYTHONPATH}:/usr/src/"
-ENV TRANSFORMERS_CACHE /cache/huggingface
+ENV HF_HOME=/cache/huggingface
+ENV TRANSFORMERS_CACHE=/cache/huggingface
+RUN mkdir -p /cache/huggingface && chmod -R 777 /cache/huggingface
 
 COPY . .
 CMD ["python", "-u", "service.py"]
