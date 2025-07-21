@@ -8,15 +8,12 @@ import numpy as np
 import pandas as pd
 from skimage import io, measure, transform
 
-from visione.extractor import BaseExtractor, CliProgress
+from visione.extractor import BaseExtractor
 
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
 for logger in loggers:
     logger.setLevel(logging.WARNING)
-
-
-log = logging.getLogger(__name__)
 
 
 def load_image(image_path):
@@ -258,15 +255,9 @@ class ColorExtractor(BaseExtractor):
             yield from pool.imap(self.extract_one, image_paths)
 
 
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract color annotations.')
     ColorExtractor.add_arguments(parser)
     args = parser.parse_args()
     extractor = ColorExtractor(args)
-
-    # Example: wrap image_paths with progress bar if running directly
-    # (Assumes extractor.run() uses extract/extract_iterable internally)
-    # If you want to add progress to extract/extract_iterable, see below
     extractor.run()

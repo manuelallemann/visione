@@ -135,20 +135,15 @@ class ProgressTracker:
     
     def __call__(self, iterable: Iterable[T]) -> Iterator[T]:
         """Wrap an iterable with the progress bar.
-
+        
         Args:
             iterable: The iterable to wrap
-
+            
         Returns:
             A wrapped iterable that updates the progress bar
         """
         if self._pbar:
-            # The original implementation `self._pbar(iterable)` was incorrect
-            # because a tqdm *instance* is not callable.
-            # The correct way is to wrap the new iterable with the existing
-            # progress bar's parameters.
-            self._pbar.reset(total=len(iterable) if hasattr(iterable, '__len__') else None)
-            return self._pbar.iterable_class(iterable, **self._pbar.pos_kwargs, **self._pbar.kw_kwargs)
+            return self._pbar(iterable)
         return iter(iterable)
     
     async def track_async(self, iterable: AsyncIterable[T]) -> AsyncGenerator[T, None]:
