@@ -17,12 +17,15 @@ loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
 for logger in loggers:
     logger.setLevel(logging.WARNING)
 
+# Configure logging; 'force' kwarg is only available from Python 3.8+
+# Remove it for compatibility with the Python 3.7 runtime used in this container.
+for h in logging.root.handlers[:]:
+    logging.root.removeHandler(h)
 logging.basicConfig(
     level=logging.DEBUG,
     stream=sys.stdout,
     format='%(asctime)s %(levelname)-8s:%(name)s:%(message)s',
     datefmt='%Y-%m-%d %H:%M:%S',
-    force=True,
 )
 log = logging.getLogger(__name__)
 
