@@ -147,6 +147,9 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
 
 
     def __init__(self, args):
+        import visione.extractor as _ve
+        import torch as _torch
+        _ve.torch = _torch
         super(CLIP2VideoExtractor, self).__init__(args)
         self.device = None
         self.model = None
