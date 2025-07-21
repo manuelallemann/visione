@@ -142,9 +142,17 @@ class ProgressTracker:
         Returns:
             A wrapped iterable that updates the progress bar
         """
-        if self._pbar:
+        if self._pbar and hasattr(self._pbar, '__call__') and callable(self._pbar):
             return self._pbar(iterable)
-        return iter(iterable)
+        # If _pbar is not callable (e.g., tqdm_asyncio object), just wrap with tqdm directly
+        return tqdm(
+            iterable,
+            initial=self.initial,
+            total=self.total,
+            desc=self.description,
+            unit=self.unit,
+            disable=self.disable
+        )
     
     async def track_async(self, iterable: AsyncIterable[T]) -> AsyncGenerator[T, None]:
         """Track progress of an async iterable.
