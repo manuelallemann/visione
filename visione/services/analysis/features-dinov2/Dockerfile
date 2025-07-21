@@ -15,12 +15,14 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Set environment variables
 # Add the current directory to PYTHONPATH to allow imports from service.py
-ENV PYTHONPATH "${PYTHONPATH}:/usr/src/app"
+ENV PYTHONPATH "${PYTHONPATH}:/usr/src/"
 # Set TORCH_HOME to a specific cache directory for PyTorch Hub models
 ENV TORCH_HOME /cache/torch
 # Create the cache directory and set appropriate permissions if needed
 RUN mkdir -p /cache/torch && chmod -R 777 /cache/torch
 
+# Copy the visione repo root so 'visione' is importable
+COPY ../../.. /usr/src/
 # Copy the rest of the service's source code into the container
 COPY . .
 
