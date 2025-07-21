@@ -1,5 +1,5 @@
 # Use a PyTorch base image with CUDA support, consistent with other services
-FROM docker.io/pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+FROM pytorch/pytorch:2.1.0-py3.10-cuda11.8-cudnn8-runtime
 
 # Set the working directory in the container
 WORKDIR /usr/src/app
