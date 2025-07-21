@@ -81,8 +81,19 @@ class OpenCLIPExtractor(BaseExtractor):
             import open_clip
             os.environ["HF_HOME"] = cache_dir
             os.environ["TRANSFORMERS_CACHE"] = cache_dir
-            self.model = open_clip.create_model(self.args.model_handle, cache_dir=cache_dir).to(self.device)
-            self.processor = open_clip.get_processor(self.args.model_handle, cache_dir=cache_dir)
+            try:
+                self.model, _, self.processor = open_clip.create_model_and_transforms(self.args.model_handle, cache_dir=cache_dir)
+                self.model = self.model.to(self.device)
+            except AttributeError:
+                # fallback for very old open_clip versions
+                self.model = open_clip.create_model(self.args.model_handle, cache_dir=cache_dir).to(self.device)
+                from torchvision import transforms as _T
+                self.processor = _T.Compose([
+                    _T.Resize(224, interpolation=_T.InterpolationMode.BICUBIC),
+                    _T.CenterCrop(224),
+                    _T.ToTensor(),
+                    _T.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711)),
+                ])
             self.model.to(self.device)
             self.model.eval()
 
