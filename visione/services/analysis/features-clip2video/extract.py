@@ -151,6 +151,10 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
         parser.add_argument('--ffmpeg-threads', type=int, default=2, help="Number of threads to use for each ffmpeg worker")
 
     def __init__(self, args):
+        # Ensure visione.extractor has access to torch before its __init__ runs
+        import visione.extractor as _ve
+        import torch as _torch
+        _ve.torch = _torch
         super(CLIP2VideoExtractor, self).__init__(args)
         self.device = None
         self.model = None
