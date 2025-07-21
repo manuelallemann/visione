@@ -1,8 +1,8 @@
 more_itertools==10.2.0
 Pillow==9.0.1
-protobuf<3.20,>=3.9.2
+protobuf==3.20.1
 pyyaml==6.0
 tensorflow_hub==0.13.0
 tensorflow==2.10.0
 numpy==1.23.5
-tqdm=4.62.0
+tqdm==4.48.2
