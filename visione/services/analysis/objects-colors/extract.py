@@ -8,12 +8,15 @@ import numpy as np
 import pandas as pd
 from skimage import io, measure, transform
 
-from visione.extractor import BaseExtractor
+from visione.extractor import BaseExtractor, CliProgress
 
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
 for logger in loggers:
     logger.setLevel(logging.WARNING)
+
+
+log = logging.getLogger(__name__)
 
 
 def load_image(image_path):
@@ -255,7 +258,7 @@ class ColorExtractor(BaseExtractor):
             yield from pool.imap(self.extract_one, image_paths)
 
 
-from services.common.extractor import CliProgress
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Extract color annotations.')
