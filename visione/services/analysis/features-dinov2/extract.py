@@ -45,7 +45,6 @@ class DinoV2Extractor(BaseExtractor):
     @classmethod
     def add_arguments(cls, parser):
         parser.add_argument('--model', default='dinov2_vits14', choices=('dinov2_vits14', 'dinov2_vitb14', 'dinov2_vitl14', 'dinov2_vitg14'), help='Model to use')
-        parser.add_argument('--batch-size', default=1, type=int, help='batch size')
         parser.add_argument('--num-workers', default=4, type=int, help='number of workers')
         super(DinoV2Extractor, cls).add_arguments(parser)
 
