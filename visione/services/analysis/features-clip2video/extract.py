@@ -177,6 +177,7 @@ class CLIP2VideoExtractor(BaseVideoExtractor):
 
     def setup(self):
         if self.model is None:
+            import torch  # Local import so torch is only required here
             # init device and model
             self.device, self.n_gpu = init_device(self.conf, self.conf.local_rank, self.logger)
             self.model = init_model(self.conf, self.device, self.logger)
