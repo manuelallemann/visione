@@ -25,6 +25,7 @@ import more_itertools
 import numpy as np
 from tqdm.asyncio import tqdm as async_tqdm
 from tqdm.auto import tqdm
+import torch
 
 from .savers import AbstractSaver, GzipJsonlFile, HDF5File, SaverError
 
