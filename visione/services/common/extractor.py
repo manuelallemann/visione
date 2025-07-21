@@ -23,7 +23,6 @@ from typing import (
 
 import more_itertools
 import numpy as np
-import torch
 from tqdm.asyncio import tqdm as async_tqdm
 from tqdm.auto import tqdm
 
@@ -260,22 +259,28 @@ class BaseExtractor(ABC):
     def _setup_gpu(self) -> None:
         """Set up GPU usage based on arguments."""
         self.use_gpu = getattr(self.args, 'gpu', False)
-        if self.use_gpu and torch.cuda.is_available():
-            # Set memory limit if specified
-            memory_limit = getattr(self.args, 'memory_limit', 0.8)
-            if 0.0 < memory_limit <= 1.0:
-                try:
-                    torch.cuda.set_per_process_memory_fraction(memory_limit)
-                    logger.info(f"GPU memory limit set to {memory_limit*100:.0f}%")
-                except Exception as e:
-                    logger.warning(f"Failed to set GPU memory limit: {e}")
-            
-            # Enable cudnn benchmark for faster training
-            torch.backends.cudnn.benchmark = True
-            logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
-        elif self.use_gpu:
-            logger.warning("GPU requested but not available, falling back to CPU")
-            self.use_gpu = False
+        if self.use_gpu:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    # Set memory limit if specified
+                    memory_limit = getattr(self.args, 'memory_limit', 0.8)
+                    if 0.0 < memory_limit <= 1.0:
+                        try:
+                            torch.cuda.set_per_process_memory_fraction(memory_limit)
+                            logger.info(f"GPU memory limit set to {memory_limit*100:.0f}%")
+                        except Exception as e:
+                            logger.warning(f"Failed to set GPU memory limit: {e}")
+                    
+                    # Enable cudnn benchmark for faster training
+                    torch.backends.cudnn.benchmark = True
+                    logger.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
+                else:
+                    logger.warning("GPU requested but not available, falling back to CPU")
+                    self.use_gpu = False
+            except ImportError:
+                logger.warning("GPU requested but torch is not installed, falling back to CPU")
+                self.use_gpu = False
         else:
             logger.info("Using CPU for processing")
     
