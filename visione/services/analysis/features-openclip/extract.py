@@ -76,10 +76,12 @@ class OpenCLIPExtractor(BaseExtractor):
             import torch
             self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
             import os
-            cache_dir = os.path.join(os.getenv('VISIONE_CACHE', '/tmp'), 'huggingface')
+            cache_dir = os.path.join(os.getenv("VISIONE_CACHE", "/tmp"), "huggingface")
             os.makedirs(cache_dir, exist_ok=True)
             import open_clip
-            self.model = open_clip.create_model(self.args.model_handle).to(self.device)
+            os.environ["HF_HOME"] = cache_dir
+            os.environ["TRANSFORMERS_CACHE"] = cache_dir
+            self.model = open_clip.create_model(self.args.model_handle, cache_dir=cache_dir).to(self.device)
             self.processor = open_clip.get_processor(self.args.model_handle, cache_dir=cache_dir)
             self.model.to(self.device)
             self.model.eval()
