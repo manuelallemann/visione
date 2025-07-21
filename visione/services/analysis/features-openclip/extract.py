@@ -73,6 +73,7 @@ class OpenCLIPExtractor(BaseExtractor):
     def setup(self):
         if self.model is None:
             # lazy load models
+            import torch
             self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
             import os
             cache_dir = os.path.join(os.environ.get('VISIONE_CACHE', '/tmp'), 'huggingface')

@@ -54,11 +54,11 @@ class DinoV2Extractor(BaseExtractor):
 
     def setup(self):
         if self.model is None:
-            self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
             import os
+            import torch
+            self.device = 'cuda' if self.args.gpu and torch.cuda.is_available() else 'cpu'
             cache_dir = os.environ.get('VISIONE_CACHE', '/tmp/torch_hub')
             os.makedirs(cache_dir, exist_ok=True)
-            import torch
             torch.hub.set_dir(cache_dir)
             try:
                 self.model = torch.hub.load('facebookresearch/dinov2', self.args.model).to(self.device)
