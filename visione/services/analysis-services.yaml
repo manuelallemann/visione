@@ -91,7 +91,7 @@ services:
     environment:
       - FEATURES_NAME=biomed-clip
       - MODEL_HANDLE=hf-hub:microsoft/BiomedCLIP-PubMedBERT_256-vit_base_patch16_224
-      - VISIONE_CACHE=/cache
+      - VISIONE_CACHE=./cache
     volumes: *common_volumes
     profiles: ["analysis", "features-biomed-clip"]
     deploy: *needs_gpu
@@ -101,7 +101,7 @@ services:
     build: ./analysis/features-clip2video
     image: visione/features-clip2video
     environment:
-      - VISIONE_CACHE=/cache
+      - VISIONE_CACHE=./cache
     volumes: *common_volumes
     profiles: ["analysis", "features-clip2video"]
     deploy: *needs_gpu
@@ -132,7 +132,7 @@ services:
     build: ./analysis/features-clipvip
     image: visione/features-clipvip
     environment:
-      - VISIONE_CACHE=/cache
+      - VISIONE_CACHE=./cache
     volumes: *common_volumes
     profiles: ["analysis", "features-clipvip"]
     deploy: *needs_gpu
