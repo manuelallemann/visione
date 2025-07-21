@@ -7,6 +7,7 @@ from PIL import Image
 import torch
 from torchvision import transforms
 
+import h5py
 from visione.extractor import BaseExtractor
 
 
@@ -40,6 +41,45 @@ class ImageListDataset(torch.utils.data.Dataset):
 
 
 
+
+class FlatHDF5Saver:
+    """Saver that writes two flat datasets: 'ids' and 'data' suitable for frame-cluster."""
+
+    def __init__(self, path, force: bool = False):
+        from pathlib import Path
+        self.path = Path(path)
+        self.force = force
+        self._file = None
+
+    def __enter__(self):
+        if self.force and self.path.exists():
+            self.path.unlink()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        # open in append or write mode (always write fresh for simplicity)
+        self._file = h5py.File(self.path, 'w')
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if self._file is not None:
+            self._file.close()
+            self._file = None
+
+    # API compatibility with BaseExtractor expectations
+    def add_many(self, records, force: bool = False):
+        ids = np.array([r['_id'] for r in records], dtype=h5py.string_dtype(encoding='utf-8'))
+        data = np.stack([r['feature_vector'] for r in records]).astype('float32')
+        self._file.create_dataset('ids', data=ids, compression="gzip")
+        self._file.create_dataset('data', data=data, compression="gzip")
+
+    def flush(self):
+        if self._file:
+            self._file.flush()
+
+    def __contains__(self, key):
+        # Flat file saver does not support incremental contains checks; always return False so extractor processes all.
+        return False
+
+
 class DinoV2Extractor(BaseExtractor):
 
     @classmethod
@@ -51,6 +91,11 @@ class DinoV2Extractor(BaseExtractor):
         super(DinoV2Extractor, self).__init__(args)
         self.device = None
         self.model = None
+
+    # Override saver to write flat datasets
+    def get_saver(self, video_id):
+        output_path = str(self.args.output).format(video_id=video_id)
+        return FlatHDF5Saver(output_path, force=self.args.force)
 
     def setup(self):
         if self.model is None:
@@ -88,7 +133,7 @@ class DinoV2Extractor(BaseExtractor):
                 fv = self.model(x).cpu().numpy()
                 features.append(fv)
         features = np.concatenate(features, axis=0)
-        records = [{'feature_vector': f.tolist()} for f in features]
+        records = [{'_id': os.path.splitext(os.path.basename(p))[0], 'feature_vector': f.tolist()} for p, f in zip(image_paths, features)]
         return records
 
 
