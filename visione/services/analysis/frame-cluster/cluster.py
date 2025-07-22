@@ -4,13 +4,13 @@ from pathlib import Path
 import sys
 import warnings
 
-import h5py
 import numpy as np
 from scipy.spatial.distance import pdist, squareform
 from sklearn.cluster import AgglomerativeClustering
 
 from visione import cli_progress as progress
 from visione.savers import GzipJsonlFile
+from visione.utils.hdf5_helpers import load_features_compat
 
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
@@ -80,9 +80,10 @@ def cluster(X):
 
 def main(args):
 
-    with h5py.File(args.features_file, 'r') as f:
-        frames_ids = f['ids'].asstr()[:]
-        frames_features = f['data'][:]
+    ids_and_features = list(load_features_compat([args.features_file]))
+    frames_ids, frames_features = zip(*ids_and_features)
+    frames_ids = np.asarray(frames_ids)
+    frames_features = np.stack(frames_features)
 
     frames_codes = cluster(frames_features)
 

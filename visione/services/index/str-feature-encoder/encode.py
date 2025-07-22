@@ -7,12 +7,12 @@ from pathlib import Path
 import random
 import sys
 
-import h5py
 import more_itertools
 import surrogate
 
 from visione import load_config, CliProgress, cli_progress
 from visione.savers import GzipJsonlFile
+from visione.utils.hdf5_helpers import load_features_compat, peek_features_attributes
 
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
@@ -33,16 +33,14 @@ def get_features(features_input_template, video_ids):
 
     # peek features name
     features_h5 = features_input_template.format(video_id=video_ids[0])
-    with h5py.File(features_h5, 'r') as f:
-        features_name = f.attrs['features_name']
-        features_dim = f['data'].shape[1]
+    features_dim, features_name = peek_features_attributes(features_h5)
 
     # generate training set
     def _gen():
         for video_id in video_ids:
             features_h5 = features_input_template.format(video_id=video_id)
-            with h5py.File(features_h5, 'r') as f:
-                yield from f['data']
+            for _, feature in load_features_compat([features_h5]):
+                yield feature
 
     train_features = _gen()
     return features_dim, features_name, train_features
@@ -91,17 +89,17 @@ def load_or_build_encoder(encoder_filename, encoder_config, dim, features, n_tra
 
 def process_video_id(features_input_file, str_output_file, encoder, force, save_every):
 
-    with h5py.File(features_input_file, 'r') as f:
-        if str_output_file.exists():
-            if force:  # if forced, delete old file
-                str_output_file.unlink()
-            else:
-                print(f'Skipping STR features encoding, using existing file:', str_output_file.name)
-                return
+    if str_output_file.exists():
+        if force:
+            str_output_file.unlink()
+        else:
+            print(f'Skipping STR features encoding, using existing file: {str_output_file.name}')
+            return
 
-        # get ids and features matrix
-        ids = f['ids'].asstr()[:]
-        features = f['data'][:]
+    ids_and_features = list(load_features_compat([features_input_file]))
+    ids, features = zip(*ids_and_features)
+    ids = np.asarray(ids)
+    features = np.stack(features)
 
     # open saver
     str_output_file.parent.mkdir(parents=True, exist_ok=True)
