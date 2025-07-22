@@ -88,7 +88,10 @@ class DinoV2Extractor(BaseExtractor):
                 fv = self.model(x).cpu().numpy()
                 features.append(fv)
         features = np.concatenate(features, axis=0)
-        records = [{'feature_vector': f.tolist()} for f in features]
+        records = [
+            {'_id': os.path.basename(path), 'feature_vector': f.tolist()}
+            for path, f in zip(image_paths, features)
+        ]
         return records
 
 
