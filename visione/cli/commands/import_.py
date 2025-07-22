@@ -391,7 +391,7 @@ class ImportCommand(BaseCommand):
             '-i', str(video_input),
             ## Define output 1 (tiny, 146 x height)
             ] + ([
-                '-vf', "scale_npp=146:-1:force_divisible_by=2",
+                '-vf', "scale_cuda=146:-1:force_divisible_by=2",
                 '-c:v', 'h264_nvenc', '-preset', 'p6', '-tune', 'hq',
             ] if gpu else [
                 '-vf', "scale=146:-1:force_divisible_by=2,pad='iw+mod(iw\,2)':'ih+mod(ih\,2)'",
@@ -401,7 +401,7 @@ class ImportCommand(BaseCommand):
             str(tiny_output),
             # Define output 2 (medium, width x 480)
             ] + ([
-                '-vf', "scale_npp=-1:480:force_divisible_by=2",
+                '-vf', "scale_cuda=-1:480:force_divisible_by=2",
                 '-c:v', 'h264_nvenc', '-preset', 'p6', '-tune', 'hq',
             ] if gpu else [
                 '-vf', "scale=-1:480:force_divisible_by=2,pad='iw+mod(iw\,2)':'ih+mod(ih\,2)'",
