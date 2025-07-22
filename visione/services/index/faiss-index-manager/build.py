@@ -5,12 +5,12 @@ import re
 import sys
 
 import faiss
-import h5py
 import more_itertools
 import numpy as np
 from tqdm import tqdm
 
 from visione import load_config, CliProgress
+from visione.utils.hdf5_helpers import load_features_compat, peek_features_attributes
 
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
@@ -26,26 +26,6 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def peek_features_attributes(h5file):
-    with h5py.File(h5file, 'r') as f:
-        features_dim = f['data'].shape[1]
-        features_name = f.attrs['features_name']
-        return features_dim, features_name
-
-
-def load_features(hdf5_files):
-    progress = CliProgress(total=0)
-
-    for hdf5_file in hdf5_files:
-        with h5py.File(hdf5_file, 'r') as h5file:
-            ids = h5file['ids'].asstr()[:]
-            features = h5file['data'][:]
-
-            progress.total += len(features)
-            ids_and_features = zip(ids, features)
-            ids_and_features = progress(ids_and_features)
-
-            yield from ids_and_features
 
 
 def create(args):
@@ -63,7 +43,7 @@ def create(args):
     # load features
     features_files = args.features_dir.glob('*/*.hdf5')
     features_files = sorted(features_files)
-    ids_and_features = load_features(features_files)
+    ids_and_features = load_features_compat(features_files)
 
     # peek features to get type and dimensionality
     dim, features_name = peek_features_attributes(features_files[0])
@@ -132,15 +112,15 @@ def add(args):
 
     def _add_single_features_file(video_features_file, index, idmap):
         # load ids and features to be added
-        with h5py.File(video_features_file, 'r') as h5file:
-            ids = h5file['ids'].asstr()[:]
+        ids_and_features = list(load_features_compat([video_features_file]))
+        ids, features = zip(*ids_and_features)
 
-            positions = [i for i, x in enumerate(idmap) if x in ids]
-            if not args.force and positions:  # frames with this video_id are present in the index
-                print(f'Skipping adding to FAISS index, already present.')
-                return index, idmap
+        positions = [i for i, x in enumerate(idmap) if x in ids]
+        if not args.force and positions:
+            print('Skipping adding to FAISS index, already present.')
+            return index, idmap
 
-            features = h5file['data'][:]
+        features = np.stack(features)
 
         if args.force and positions:  # when forcing, remove existing entries for this video from the index
             idmap = [x for i, x in enumerate(idmap) if i not in positions]

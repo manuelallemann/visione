@@ -205,5 +205,17 @@ visione compose build core  # rebuild only the core service
 visione compose up -d core  # restart the core service with the newly built image
 ```
 
+### HDF5 Features File Layout
+
+Feature extraction services store vectors in HDF5 files. Two layouts are
+supported:
+
+1. **Dataset layout** – datasets `/ids` and `/data` contain the record IDs and
+   the feature matrix.
+2. **Group layout** – one group per record identified by its ID; each group
+   stores the feature array (e.g. under `feature_vector`).
+
+In both cases the file attribute `features_name` specifies the type of features.
+
 ## Need Help or Have Feedback? 
 We encourage you to [open a discussion](https://github.com/aimh-lab/visione/discussions) to request assistance with using this project, make suggestions, or report any issues. 
