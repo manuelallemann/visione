@@ -120,7 +120,7 @@ class PreprocessCommand(BaseCommand):
         # GPU args
         standard_args = [
             '-c:v', config.get('video_codec', 'h264_nvenc'),
-            '-vf', f"scale=w=1920:h=1080:force_original_aspect_ratio=decrease,format={config.get('color_format', 'rgb24')}",
+            '-vf', f"scale=w=1920:h=1080:force_original_aspect_ratio=decrease,format={config.get('color_format', 'rgb24')},scale=trunc(iw/2)*2:trunc(ih/2)*2",
             '-pix_fmt', config.get('pixel_format', 'yuv420p'),
             '-c:a', config.get('audio_codec', 'aac'),
             '-b:a', config.get('audio_bitrate', '192k'),
