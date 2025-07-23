@@ -24,6 +24,7 @@ class PreprocessCommand(BaseCommand):
         config = self.config.get('preprocessing', {})
         raw_video_dir = self.collection_dir / config.get('raw_video_dir', 'raw_videos')
         output_video_dir = self.collection_dir / config.get('output_video_dir', 'videos')
+        ffmpeg_path = config.get('ffmpeg_path', 'ffmpeg')
         # Detect number of GPUs
         num_gpus = self._detect_num_gpus()
         if num_gpus > 0:
@@ -36,7 +37,6 @@ class PreprocessCommand(BaseCommand):
         # FFmpeg version/build check
         self._check_ffmpeg_build(ffmpeg_path)
 
-        ffmpeg_path = config.get('ffmpeg_path', 'ffmpeg')
         skip_existing = config.get('skip_existing', True)
 
         # Build ffmpeg args from config
