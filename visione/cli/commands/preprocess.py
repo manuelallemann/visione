@@ -24,7 +24,8 @@ class PreprocessCommand(BaseCommand):
         config = self.config.get('preprocessing', {})
         raw_video_dir = self.collection_dir / config.get('raw_video_dir', 'raw_videos')
         output_video_dir = self.collection_dir / config.get('output_video_dir', 'videos')
-        max_workers = config.get('max_workers', 2)
+        import os
+        max_workers = config.get('max_workers', min(max(os.cpu_count() - 8, 1), 56))  # Use ~80-90% of CPUs by default
         ffmpeg_path = config.get('ffmpeg_path', 'ffmpeg')
         skip_existing = config.get('skip_existing', True)
 
@@ -52,6 +53,18 @@ class PreprocessCommand(BaseCommand):
 
         invalid_outputs = []
 
+        def get_video_codec(input_path):
+            import json
+            cmd = [
+                'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+                '-show_entries', 'stream=codec_name', '-of', 'json', str(input_path)
+            ]
+            result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode == 0:
+                info = json.loads(result.stdout)
+                return info['streams'][0]['codec_name'] if info['streams'] else None
+            return None
+
         def process_one(f):
             # Normalize input filename and output path
             try:
@@ -71,11 +84,18 @@ class PreprocessCommand(BaseCommand):
                 print(f"Skipping {out}, already exists.")
                 return
 
+            # Detect codec and choose pipeline
+            codec = get_video_codec(f)
+            gpu_codecs = {"h264", "hevc", "av1", "vp9", "mjpeg"}
+            use_gpu_this = codec in gpu_codecs
+
             success = False
-            if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=use_gpu):
-                success = True
-            elif self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=False):
-                success = True
+            if use_gpu_this and self._has_gpu_ffmpeg(ffmpeg_path):
+                if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=True):
+                    success = True
+            if not success:
+                if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=False):
+                    success = True
 
             if success:
                 # Validate output with ffprobe
