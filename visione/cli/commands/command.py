@@ -102,11 +102,7 @@ class BaseCommand(ABC):
         ]
 
     def compose_run(self, service_name, service_command, stdout_callback=None, stderr_callback=None, check=True, **run_kws):
-        # Patch: add --gpus all for ffmpeg service
-        if service_name == 'ffmpeg' and self.compose_run_cmd[0:2] == ['docker', 'compose']:
-            command = self.compose_run_cmd[:self.compose_run_cmd.index('run')+1] + ['--gpus', 'all'] + self.compose_run_cmd[self.compose_run_cmd.index('run')+1:] + [service_name] + service_command
-        else:
-            command = self.compose_run_cmd + [service_name] + service_command
+        command = self.compose_run_cmd + [service_name] + service_command
 
         if self.verbose:
             debug_env = [f'{k}={v}' for k, v in self.compose_env.items()]
