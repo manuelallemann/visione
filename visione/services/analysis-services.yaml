@@ -2,9 +2,6 @@ services:
   ffmpeg:
     image: jrottenberg/ffmpeg:5.1.2-nvidia2004
     entrypoint: []
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=all
     volumes:
       - ${VISIONE_ROOT}:/data
       - ${VISIONE_CACHE}:/cache
