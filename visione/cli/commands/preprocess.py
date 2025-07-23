@@ -12,10 +12,12 @@ class PreprocessCommand(BaseCommand):
     """ Implements the 'preprocess' CLI command. """
 
     def add_arguments(self, subparsers):
-        parser = subparsers.add_parser('preprocess', help='Preprocesses all videos in the raw_video_dir specified in config.yaml.')
+        parser = subparsers.add_parser('preprocess', help='Preprocesses videos in raw_video_dir or a single file.')
+        parser.add_argument('--single', type=Path, default=None,
+                            help='Preprocess only this video file instead of scanning the raw video directory.')
         parser.set_defaults(func=self)
 
-    def __call__(self, **kwargs):
+    def __call__(self, *, single: Path = None, **kwargs):
         super().__call__(**kwargs)
 
         # Load settings from config.yaml
@@ -32,19 +34,31 @@ class PreprocessCommand(BaseCommand):
         print(f"Looking for input videos in: {raw_video_dir.absolute()}")
         os.makedirs(output_video_dir, exist_ok=True)
 
-        files = []
-        for ext in ('.mp4', '.mov', '.avi', '.mkv', '.webm'):
-            files.extend(glob.glob(os.path.join(raw_video_dir, f'**/*{ext}'), recursive=True))
-
-        if not files:
-            print(f"No supported video files found in {raw_video_dir}. Nothing to do.")
-            return 0
+                # Determine input list
+        if single is not None:
+            files = [str(single)]
+            if not Path(single).exists():
+                print(f"[ERROR] --single file not found: {single}")
+                return 1
+        else:
+            files = []
+            for ext in ('.mp4', '.mov', '.avi', '.mkv', '.webm'):
+                files.extend(glob.glob(os.path.join(raw_video_dir, f'**/*{ext}'), recursive=True))
+            if not files:
+                print(f"No supported video files found in {raw_video_dir}. Nothing to do.")
+                return 0
 
         use_gpu = self._has_gpu_ffmpeg(ffmpeg_path)
 
+        invalid_outputs = []
+
         def process_one(f):
             # Normalize input filename and output path
-            relative_path = Path(f).relative_to(raw_video_dir)
+            try:
+                relative_path = Path(f).relative_to(raw_video_dir)
+            except ValueError:
+                # If file is outside raw_video_dir (when using --single), keep only filename
+                relative_path = Path(f).name
             normalized_relative_path = normalize_path(str(relative_path.parent))
             
             norm_out_name = normalize_filename(relative_path.stem) + '.mp4'
@@ -57,13 +71,28 @@ class PreprocessCommand(BaseCommand):
                 print(f"Skipping {out}, already exists.")
                 return
 
-            if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=use_gpu) or \
-               self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=False):
-                self._index_to_elasticsearch(f, str(out))
+            success = False
+            if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=use_gpu):
+                success = True
+            elif self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=False):
+                success = True
+
+            if success:
+                # Validate output with ffprobe
+                val_cmd = ['ffprobe', '-v', 'error', '-show_format', '-show_streams', str(out)]
+                if subprocess.call(val_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+                    self._index_to_elasticsearch(f, str(out))
+                else:
+                    print(f"[WARN] ffprobe could not read {out}, marking as invalid.")
+                    invalid_outputs.append(str(out))
 
         with ThreadPoolExecutor(max_workers=max_workers) as pool:
             pool.map(process_one, files)
-        
+
+        if invalid_outputs:
+            print("\n[WARN] The following outputs could not be probed by ffprobe (possibly corrupt):")
+            for p in invalid_outputs:
+                print(f" - {p}")
         print("Preprocessing complete.")
         return 0
 
