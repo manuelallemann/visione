@@ -107,6 +107,37 @@ For example, you can manually place/mount video files in the `videos/` collectio
 # for importing a single file
 visione import --id bunny --no-copy videos/bunny.mp4 
 visione import --id grand --no-copy videos/grand.mov
+```
+
+---
+
+## Video Preprocessing with `visione preprocess`
+
+Visione provides a `preprocess` command to normalize and re-encode videos before import. This is useful for cleaning up problematic or corrupted files and ensuring compatibility.
+
+### Usage
+
+- **Bulk preprocess all videos in the raw directory (from `config.yaml`):**
+  ```bash
+  visione preprocess
+  ```
+- **Preprocess a single file:**
+  ```bash
+  visione preprocess --single /path/to/yourfile.mov
+  ```
+  The output will be written to the configured output directory (e.g. `videos/`).
+
+### Behavior
+- By default, files that have already been processed (output exists) are skipped. To re-process, delete the output file and rerun the command.
+- After transcoding, the output is validated with `ffprobe`. Any files that fail validation are reported at the end.
+- The command will try GPU acceleration first (if available), then fall back to CPU encoding if needed.
+
+### Example workflow for fixing corrupt files
+1. Run `visione preprocess` or `visione preprocess --single ...`.
+2. If any outputs are reported as corrupt, delete those result files.
+3. Rerun the command to re-process only the missing/corrupt files.
+
+---
 
 # for bulk import of all the videos in the test-collection/videos folder
 visione import --no-copy --bulk
