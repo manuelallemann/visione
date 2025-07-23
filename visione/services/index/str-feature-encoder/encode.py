@@ -13,6 +13,7 @@ import surrogate
 from visione import load_config, CliProgress, cli_progress
 from visione.savers import GzipJsonlFile
 from visione.utils.hdf5_helpers import load_features_compat, peek_features_attributes
+import numpy as np
 
 
 loggers = [logging.getLogger(name) for name in logging.root.manager.loggerDict]
