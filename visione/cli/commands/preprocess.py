@@ -5,6 +5,8 @@ import glob
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, MofNCompleteColumn
+
 from .command import BaseCommand
 from ...utils.normalize_utils import normalize_path, normalize_filename
 
@@ -51,7 +53,7 @@ class PreprocessCommand(BaseCommand):
 
         use_gpu = self._has_gpu_ffmpeg(ffmpeg_path)
 
-        invalid_outputs = []
+        results = {'success': 0, 'skipped': 0, 'failed': []}
 
         def get_video_codec(input_path):
             import json
@@ -61,8 +63,11 @@ class PreprocessCommand(BaseCommand):
             ]
             result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if result.returncode == 0:
-                info = json.loads(result.stdout)
-                return info['streams'][0]['codec_name'] if info['streams'] else None
+                try:
+                    info = json.loads(result.stdout)
+                    return info['streams'][0]['codec_name'] if info.get('streams') else None
+                except (json.JSONDecodeError, IndexError):
+                    return None
             return None
 
         def process_one(f):
@@ -70,10 +75,9 @@ class PreprocessCommand(BaseCommand):
             try:
                 relative_path = Path(f).relative_to(raw_video_dir)
             except ValueError:
-                # If file is outside raw_video_dir (when using --single), keep only filename
                 relative_path = Path(f).name
             normalized_relative_path = normalize_path(str(relative_path.parent))
-            
+
             norm_out_name = normalize_filename(relative_path.stem) + '.mp4'
             norm_out_dir = output_video_dir / normalized_relative_path
             out = norm_out_dir / norm_out_name
@@ -82,37 +86,63 @@ class PreprocessCommand(BaseCommand):
 
             if skip_existing and out.exists():
                 print(f"Skipping {out}, already exists.")
-                return
+                return 'skipped'
 
             # Detect codec and choose pipeline
             codec = get_video_codec(f)
             gpu_codecs = {"h264", "hevc", "av1", "vp9", "mjpeg"}
-            use_gpu_this = codec in gpu_codecs
+            use_gpu_this = use_gpu and codec in gpu_codecs
 
-            success = False
-            if use_gpu_this and self._has_gpu_ffmpeg(ffmpeg_path):
-                if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=True):
-                    success = True
+            success, reason = False, ""
+            if use_gpu_this:
+                success, reason = self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=True)
+
             if not success:
-                if self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=False):
-                    success = True
+                success, reason = self._preprocess_video(ffmpeg_path, f, str(out), use_gpu=False)
 
             if success:
                 # Validate output with ffprobe
                 val_cmd = ['ffprobe', '-v', 'error', '-show_format', '-show_streams', str(out)]
-                if subprocess.call(val_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+                if subprocess.run(val_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE).returncode == 0:
                     self._index_to_elasticsearch(f, str(out))
+                    return 'success'
                 else:
-                    print(f"[WARN] ffprobe could not read {out}, marking as invalid.")
-                    invalid_outputs.append(str(out))
+                    reason = f"Output file could not be read by ffprobe: {out}"
+                    success = False # Mark as failure
 
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            pool.map(process_one, files)
+            if not success:
+                return ('failed', f, reason)
 
-        if invalid_outputs:
-            print("\n[WARN] The following outputs could not be probed by ffprobe (possibly corrupt):")
-            for p in invalid_outputs:
-                print(f" - {p}")
+        progress_cols = [
+            SpinnerColumn(),
+            *Progress.get_default_columns()[:1],
+            MofNCompleteColumn(),
+            *Progress.get_default_columns()[1:],
+            TimeElapsedColumn()
+        ]
+        with Progress(*progress_cols, transient=True) as progress:
+            task = progress.add_task('', total=len(files))
+            with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                for i, result in enumerate(pool.map(process_one, files)):
+                    if result == 'success':
+                        results['success'] += 1
+                    elif result == 'skipped':
+                        results['skipped'] += 1
+                    elif isinstance(result, tuple) and result[0] == 'failed':
+                        results['failed'].append((result[1], result[2]))
+                    progress.update(task, advance=1, description=f"Processing video {i+1}/{len(files)}")
+
+        print("\n--- Preprocessing Summary ---")
+        print(f"Successfully processed: {results['success']}")
+        print(f"Skipped (already exist): {results['skipped']}")
+        print(f"Failed: {len(results['failed'])}")
+
+        if results['failed']:
+            print("\n--- Failed Videos ---")
+            for file, reason in results['failed']:
+                print(f"File: {file}")
+                print(f"Reason: {reason}\n")
+
         print("Preprocessing complete.")
         return 0
 
@@ -149,18 +179,21 @@ class PreprocessCommand(BaseCommand):
         args = [ffmpeg_path, '-hide_banner', '-loglevel', 'error']
         if use_gpu:
             args.extend(['-hwaccel', 'cuda'])
-        
-        args.extend(['-i', input_path])
+
+        args.extend(['-i', str(input_path)])
         args.extend(self.standard_video_args if use_gpu else self.cpu_fallback_args)
         args.append(output_path)
+
         try:
-            print(f"Processing {input_path} -> {output_path} (GPU: {use_gpu})")
-            subprocess.check_call(args)
-            print(f"Success: {output_path}")
-            return True
+
+            result = subprocess.run(args, check=True, capture_output=True, text=True)
+
+            return True, None
         except subprocess.CalledProcessError as e:
-            print(f"Failed ({'GPU' if use_gpu else 'CPU'}): {input_path} -> {output_path}\n{e}")
-            return False
+            error_message = f"FFmpeg failed ({'GPU' if use_gpu else 'CPU'}) with exit code {e.returncode}.\n"
+            error_message += f"Stderr: {e.stderr.strip()}"
+
+            return False, error_message
 
     def _index_to_elasticsearch(self, original_path, preprocessed_path, thumbnail_path=None):
         try:
