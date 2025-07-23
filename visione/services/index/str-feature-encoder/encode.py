@@ -58,6 +58,10 @@ def load_or_build_encoder(encoder_filename, encoder_config, dim, features, n_tra
         index_type = encoder_config.get('index_type', default_index_type)
         index_params = encoder_config.get('index_params', default_index_params)
 
+        # Remove unsupported parameter for some index types
+        if "rectify_negatives" in index_params:
+            del index_params["rectify_negatives"]
+
         # init the encoder
         index_string = ', '.join(f'{k}={v}' for k, v in index_params.items())
         index_string = f'{index_type}({index_string})'
