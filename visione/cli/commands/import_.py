@@ -118,18 +118,20 @@ class ImportCommand(BaseCommand):
 
             # Only import videos that are NOT fully imported
             video_paths = [v for v in video_paths if v.stem not in imported_ids]
-            # Deduplicate by stem, preferring the first occurrence found
-            unique_paths = {}
-            duplicates = []
+                        # Deduplicate by video ID (stem). Prefer the file located directly in
+            # the top-level `videos/` directory. If that is absent, keep the first
+            # occurrence found.
+            path_by_stem = {}
             for v in sorted(video_paths):
-                if v.stem in unique_paths:
-                    duplicates.append(v)
-                else:
-                    unique_paths[v.stem] = v
-            if duplicates:
-                print(f"[Import] Skipping {len(duplicates)} files with duplicate video IDs: {[d.name for d in duplicates]}")
-            video_paths = list(unique_paths.values())
+                if v.stem not in path_by_stem:
+                    path_by_stem[v.stem] = v
+                # If we later encounter a file with the same stem **in** the top-level
+                # directory, replace the stored one to avoid an extra copy.
+                elif v.parent == videos_dir:
+                    path_by_stem[v.stem] = v
+            video_paths = list(path_by_stem.values())
             video_paths.sort()
+            # Convert to parsed URLs expected by the rest of the pipeline
             video_paths = [urllib.parse.urlparse(str(v)) for v in video_paths]
         else:
             # import a single video
