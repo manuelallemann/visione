@@ -118,8 +118,18 @@ class ImportCommand(BaseCommand):
 
             # Only import videos that are NOT fully imported
             video_paths = [v for v in video_paths if v.stem not in imported_ids]
+            # Deduplicate by stem, preferring the first occurrence found
+            unique_paths = {}
+            duplicates = []
+            for v in sorted(video_paths):
+                if v.stem in unique_paths:
+                    duplicates.append(v)
+                else:
+                    unique_paths[v.stem] = v
+            if duplicates:
+                print(f"[Import] Skipping {len(duplicates)} files with duplicate video IDs: {[d.name for d in duplicates]}")
+            video_paths = list(unique_paths.values())
             video_paths.sort()
-            assert len({v.stem for v in video_paths}) == len(video_paths), "Duplicate video IDs found in recursive import from 'videos' directory."
             video_paths = [urllib.parse.urlparse(str(v)) for v in video_paths]
         else:
             # import a single video
