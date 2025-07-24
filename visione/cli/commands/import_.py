@@ -89,49 +89,13 @@ class ImportCommand(BaseCommand):
             # Recursively find all video files in videos/ and subfolders
             video_paths = [v for v in videos_dir.glob('**/*') if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS]
 
-            # Determine already *fully* imported video IDs.
-            # A video is considered fully imported only if all downstream outputs
-            # required by the selected pipeline steps already exist (e.g. resized videos,
-            # thumbnails, etc.).  This allows an interrupted bulk import to resume where
-            # it left off.
-            def _is_fully_imported(vid_stem: str) -> bool:
-                """Return True if all outputs required by the current flags exist."""
-                # Check resized videos
-                if do_resize:
-                    tiny   = self.collection_dir / 'resized-videos' / 'tiny'   / f'{vid_stem}-tiny.mp4'
-                    medium = self.collection_dir / 'resized-videos' / 'medium' / f'{vid_stem}-medium.mp4'
-                    if not (tiny.exists() and medium.exists()):
-                        return False
-                # Check selected frames and thumbnails (treated as the final step)
-                if do_thumbs:
-                    thumb_dir = self.collection_dir / 'thumbnails' / vid_stem
-                    if not (thumb_dir.exists() and any(thumb_dir.glob('*.jpg'))):
-                        return False
-                # If specific intermediate steps were requested, you can add checks
-                # for them here (scenes/frames). For now, we assume they run if the
-                # later steps exist.
-                return True
+            # Get a set of already imported video IDs (stems) at the top level of videos/
+            imported_ids = {v.stem for v in videos_dir.glob('*') if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS}
 
-            # Gather IDs that are already fully imported
-            imported_ids = {v.stem for v in videos_dir.glob('*')
-                             if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS and _is_fully_imported(v.stem)}
-
-            # Only import videos that are NOT fully imported
+            # Only import videos whose stem is not already present at the top level
             video_paths = [v for v in video_paths if v.stem not in imported_ids]
-                        # Deduplicate by video ID (stem). Prefer the file located directly in
-            # the top-level `videos/` directory. If that is absent, keep the first
-            # occurrence found.
-            path_by_stem = {}
-            for v in sorted(video_paths):
-                if v.stem not in path_by_stem:
-                    path_by_stem[v.stem] = v
-                # If we later encounter a file with the same stem **in** the top-level
-                # directory, replace the stored one to avoid an extra copy.
-                elif v.parent == videos_dir:
-                    path_by_stem[v.stem] = v
-            video_paths = list(path_by_stem.values())
             video_paths.sort()
-            # Convert to parsed URLs expected by the rest of the pipeline
+            assert len({v.stem for v in video_paths}) == len(video_paths), "Duplicate video IDs found in recursive import from 'videos' directory."
             video_paths = [urllib.parse.urlparse(str(v)) for v in video_paths]
         else:
             # import a single video
