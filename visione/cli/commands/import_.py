@@ -211,7 +211,7 @@ class ImportCommand(BaseCommand):
         progress_cols = [SpinnerColumn(), *Progress.get_default_columns(), MofNCompleteColumn(), TimeElapsedColumn()]
         skipped_files = []
         with Progress(*progress_cols, transient=not self.develop_mode) as progress, \
-             concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as executor:
+             concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
 
             def safe_func(func, x):
                 try:
@@ -240,9 +240,14 @@ class ImportCommand(BaseCommand):
                 video_ids_and_paths = [self.get_video_id_and_path(v) for v in video_paths]
 
             # create all resized videos
+            num_gpus = 2
             if do_resize:
-                func = lambda x: self.create_resized_videos(x[1], x[0], replace, gpu)
-                map_with_progress(func, video_ids_and_paths, description='Resizing videos')
+                def func_with_gpu_resize(args):
+                    idx, x = args
+                    gpu_id = idx % num_gpus
+                    return self.create_resized_videos(x[1], x[0], replace, gpu, gpu_id=gpu_id)
+                video_ids_and_paths_with_idx = list(enumerate(video_ids_and_paths))
+                map_with_progress(func_with_gpu_resize, video_ids_and_paths_with_idx, description='Resizing videos')
 
             if do_scenes:
                 # detect scenes and extract frames
@@ -253,10 +258,14 @@ class ImportCommand(BaseCommand):
                 func = lambda x: self.extract_frames(x[1], x[0], force=replace)
                 map_with_progress(func, video_ids_and_paths, description='Extracting frames')
 
+            num_gpus = 2
             if do_thumbs:
-                # create frames thumbnails
-                func = lambda x: self.create_frames_thumbnails(x[0], replace)
-                map_with_progress(func, video_ids_and_paths, description='Generating thumbs')
+                def func_with_gpu_thumbs(args):
+                    idx, x = args
+                    gpu_id = idx % num_gpus
+                    return self.create_frames_thumbnails(x[0], replace, gpu_id=gpu_id)
+                video_ids_and_paths_with_idx = list(enumerate(video_ids_and_paths))
+                map_with_progress(func_with_gpu_thumbs, video_ids_and_paths_with_idx, description='Generating thumbs')
 
             progress.console.log('Import complete.')
             if skipped_files:
@@ -335,7 +344,7 @@ class ImportCommand(BaseCommand):
         urllib.request.urlretrieve(video_url.geturl(), video_out, show_progress_fn)
         return video_id, video_out
 
-    def create_resized_videos(self, video_path, video_id, force=False, gpu=False, show_progress=None):
+    def create_resized_videos(self, video_path, video_id, force=False, gpu=False, show_progress=None, gpu_id=None):
         """ Creates downsampled videos for visualization purposes.
             This implementation uses a dockerized version of ffmpeg.
 
@@ -417,7 +426,12 @@ class ImportCommand(BaseCommand):
                 current_time_s = float(line.rstrip().split('=')[1]) / 1_000_000
                 show_progress(current_time_s, duration_s)
 
-        return self.compose_run(service, command, stdout_callback=stdout_callback)
+                # Set CUDA_VISIBLE_DEVICES if gpu_id is specified
+        extra_env = None
+        if gpu and gpu_id is not None:
+            extra_env = os.environ.copy()
+            extra_env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        return self.compose_run(service, command, stdout_callback=stdout_callback, env=extra_env)
 
     def detect_scenes(self, video_path, video_id, detection_params, max_length, force=False, show_progress=None):
         """ Detect scenes from a video file and extract the middle frame of every scene.
@@ -533,7 +547,7 @@ class ImportCommand(BaseCommand):
 
         return ret
 
-    def create_frames_thumbnails(self, video_id, force=False, show_progress=None):
+    def create_frames_thumbnails(self, video_id, force=False, show_progress=None, gpu_id=None):
         """ Creates thumbnails for the selected frames of a video.
             This implementation uses a dockerized version of ffmpeg.
 
@@ -581,5 +595,10 @@ class ImportCommand(BaseCommand):
                 current_frame = int(line.rstrip().split('=')[1])
                 show_progress(current_frame, n_frames)
 
-        return self.compose_run(service, command, stdout_callback=stdout_callback, stderr_callback=print)
+            # Set CUDA_VISIBLE_DEVICES if gpu_id is specified
+    extra_env = None
+    if gpu_id is not None:
+        extra_env = os.environ.copy()
+        extra_env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+    return self.compose_run(service, command, stdout_callback=stdout_callback, stderr_callback=print, env=extra_env)
 
