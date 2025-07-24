@@ -89,11 +89,10 @@ class ImportCommand(BaseCommand):
             # Recursively find all video files in videos/ and subfolders
             video_paths = [v for v in videos_dir.glob('**/*') if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS]
 
-            # Get a set of already imported video IDs by checking for the existence of the thumbnail directory
-            thumbnails_dir = self.collection_dir / 'thumbnails'
-            imported_ids = {d.name for d in thumbnails_dir.iterdir() if d.is_dir()}
+            # Get a set of already imported video IDs (stems) at the top level of videos/
+            imported_ids = {v.stem for v in videos_dir.glob('*') if v.is_file() and v.suffix.lower() in SUPPORTED_VIDEO_FORMATS}
 
-            # Only import videos that have not been fully processed yet
+            # Only import videos whose stem is not already present at the top level
             video_paths = [v for v in video_paths if v.stem not in imported_ids]
             video_paths.sort()
             assert len({v.stem for v in video_paths}) == len(video_paths), "Duplicate video IDs found in recursive import from 'videos' directory."
