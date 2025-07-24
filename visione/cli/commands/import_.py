@@ -595,10 +595,8 @@ class ImportCommand(BaseCommand):
                 current_frame = int(line.rstrip().split('=')[1])
                 show_progress(current_frame, n_frames)
 
-            # Set CUDA_VISIBLE_DEVICES if gpu_id is specified
-    extra_env = None
-    if gpu_id is not None:
-        extra_env = os.environ.copy()
-        extra_env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
-    return self.compose_run(service, command, stdout_callback=stdout_callback, stderr_callback=print, env=extra_env)
-
+        extra_env = None
+        if gpu_id is not None:
+            extra_env = os.environ.copy()
+            extra_env['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        return self.compose_run(service, command, stdout_callback=stdout_callback, stderr_callback=print, env=extra_env)
