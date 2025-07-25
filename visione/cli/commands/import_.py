@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 
 from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn, MofNCompleteColumn
+from collections import Counter
 
 from .command import BaseCommand
 
@@ -95,7 +96,10 @@ class ImportCommand(BaseCommand):
             # Only import videos whose stem is not already present at the top level
             video_paths = [v for v in video_paths if v.stem not in imported_ids]
             video_paths.sort()
-            assert len({v.stem for v in video_paths}) == len(video_paths), "Duplicate video IDs found in recursive import from 'videos' directory."
+            stems = [v.stem for v in video_paths]
+            dup_ids = [s for s, c in Counter(stems).items() if c > 1]
+            if dup_ids:
+                raise AssertionError(f"Duplicate video IDs found in recursive import from 'videos' directory: {', '.join(sorted(dup_ids))}")
             video_paths = [urllib.parse.urlparse(str(v)) for v in video_paths]
         else:
             # import a single video
